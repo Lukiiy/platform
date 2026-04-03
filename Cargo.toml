@@ -19,3 +19,7 @@ colored = "3.1.1"
 anyhow = "1.0.102"
 dirs = "6"
 craftping = { version = "0.7", default-features = false, features = ["async-tokio"] }
+
+[profile.release]
+opt-level = "s"
+lto = "thin"
