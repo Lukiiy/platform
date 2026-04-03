@@ -3,6 +3,8 @@ use reqwest::Client;
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
 
+// todo: snapshots & more modded servers?
+
 pub struct SoftwareManager {
     pub software_dir: PathBuf,
 
