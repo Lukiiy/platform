@@ -15,7 +15,10 @@ pub struct Config {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
-    pub data_dir: PathBuf
+    pub data_dir: PathBuf,
+
+    #[serde(default)]
+    pub java_path: String
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -30,7 +33,8 @@ pub struct ServerEntry {
     #[serde(default)]
     pub extra_jvm_args: Vec<String>,
 
-    pub jar_name: Option<String>
+    pub jar_name: Option<String>,
+    pub java_path: Option<String>
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -97,9 +101,14 @@ impl fmt::Display for LinkMode {
 impl Default for Config {
     fn default() -> Self {
         let data_dir = dirs::data_local_dir().unwrap_or_else(|| PathBuf::from(".")).join("platform");
+        let java_path = "java".into();
 
         Config {
-            app: Settings { data_dir },
+            app: Settings {
+                data_dir,
+                java_path
+            },
+
             servers: vec![],
             folder_syncs: vec![]
         }
