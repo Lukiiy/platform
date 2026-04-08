@@ -148,8 +148,8 @@ async fn start_server(index: usize) -> Result<()> {
 
     for group in config.folder_syncs.iter().filter(|it| it.servers.contains(&entry.id)) { // sync folder groups
         match foldersync::sync(group, &servers) {
-            Ok(r) => ui::ok(&format!("Synced \"{}\"! {r}", group.name)),
-            Err(e) => ui::warn(&format!("Failed sync \"{}\": {e}", group.name))
+            Ok(r) => ui::ok(&format!("Synced {}! {r}", group.name)),
+            Err(e) => ui::warn(&format!("Failed sync {}: {e}", group.name))
         }
     }
 
@@ -157,8 +157,8 @@ async fn start_server(index: usize) -> Result<()> {
 
     for group in config.folder_syncs.iter().filter(|it| it.servers.contains(&entry.id)) {
         match foldersync::unsync(group, &servers) {
-            Ok(n) => ui::ok(&format!("Unsynced \"{}\"! {n} link(s) removed", group.name)),
-            Err(e) => ui::warn(&format!("Failed unsync \"{}\": {e}", group.name))
+            Ok(n) => ui::ok(&format!("Unsynced {}! {n} link(s) removed", group.name)),
+            Err(e) => ui::warn(&format!("Failed unsync {}: {e}", group.name))
         }
     }
 
