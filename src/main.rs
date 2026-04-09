@@ -385,7 +385,9 @@ fn link_action_menu(index: usize) -> Result<()> {
             }
         }
 
-        match ui::menu("Action", &["Open group folder", "Edit toggled servers", "Delete group", "Back"], 0)? {
+        println!();
+
+        match ui::menu("Actions", &["Open group folder", "Edit toggled servers", "Delete group", "Back"], 0)? {
             0 => {
                 open_folder(&config.group_dir(&config.folder_syncs[index]).to_string_lossy().into_owned());
             }
@@ -394,7 +396,6 @@ fn link_action_menu(index: usize) -> Result<()> {
                 let labels: Vec<String> = config.servers.iter().map(|it| it.name.clone()).collect();
                 let current_ids = config.folder_syncs[index].servers.clone();
                 let defaults: Vec<bool> = config.servers.iter().map(|it| current_ids.contains(&it.id)).collect();
-
                 let sel = dialoguer::MultiSelect::new().with_prompt("Toggled servers (space to toggle)").items(&labels).defaults(&defaults).interact()?;
 
                 config.folder_syncs[index].servers = sel.into_iter().map(|it| config.servers[it].id.clone()).collect();
@@ -454,7 +455,7 @@ fn create_link_menu() -> Result<()> {
     config.folder_syncs.push(link);
     config.save()?;
 
-    ui::info("Drop folders and/or into the group folder!");
+    ui::info("Drop folders and/or files into the group folder!");
     ui::pause("Press Enter...");
 
     Ok(())
