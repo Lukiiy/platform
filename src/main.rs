@@ -7,7 +7,7 @@ mod ui;
 use anyhow::Result;
 use colored::Colorize;
 use config::{Config, LinkMode, FolderLinks, ServerEntry, Software};
-use dialoguer::{Confirm, Input, Select};
+use dialoguer::{Confirm, Input};
 use software::SoftwareManager;
 
 #[tokio::main]
@@ -54,7 +54,7 @@ async fn main_menu() -> Result<bool> {
     let idx_quit = items.len();
     items.push("Quit".into());
 
-    let sel = Select::new().with_prompt("Select a server or action").items(&items).default(0).interact()?;
+    let sel = ui::menu("Select a server or action", &items, 0)?;
 
     if sel < idx_add {
         server_menu(sel).await?;
@@ -82,11 +82,9 @@ async fn server_menu(index: usize) -> Result<()> {
         println!(" {} {}", "Server:".dimmed(), server.name.bold().bright_white());
         println!(" {} {}", "Software:".dimmed(), server.software.as_str().bright_cyan());
         println!(" {} {}", "Version:".dimmed(), server.mc_version.bright_cyan());
-        println!("");
+        println!();
 
-        let items = ["Start", "Check software", "Open folder", "Edit settings", "Remove", "Back"];
-
-        match Select::new().with_prompt(&format!("Actions")).items(&items).default(0).interact()? {
+        match ui::menu("Actions", &["Start", "Check software", "Open folder", "Edit settings", "Remove", "Back"], 0)? {
             0 => start_server(index).await?,
             1 => check_update_menu(index).await?,
             2 => open_folder(&config.servers[index].path.to_string_lossy()),
@@ -263,7 +261,7 @@ async fn add_server_menu() -> Result<()> {
 
     ui::banner();
 
-    let action = Select::new().with_prompt("Actions").items(&["Create a new one", "Import existing folder", "Back"]).default(0).interact()?;
+    let action = ui::menu("Actions", &["Create a new one", "Import existing folder", "Back"], 0)?;
 
     if action == 2 { return Ok(()); }
     let is_new = action == 0;
@@ -273,7 +271,7 @@ async fn add_server_menu() -> Result<()> {
 
     let variants = Software::variants();
     let labels: Vec<&str> = variants.iter().map(|(_, l)| *l).collect();
-    let sw_sel = Select::new().with_prompt("Software").items(&labels).default(0).interact()?;
+    let sw_sel = ui::menu("Software", &labels, 0)?;
     let software = Software::from_str(variants[sw_sel].0);
 
     let mc_version: String = if software.auto_download() {
@@ -281,7 +279,7 @@ async fn add_server_menu() -> Result<()> {
 
         match SoftwareManager::new(config.software_dir()).minecraft_releases(30).await {
             Ok(versions) => {
-                let idx = Select::new().with_prompt("Minecraft version").items(&versions).default(0).interact()?;
+                let idx = ui::menu("Minecraft version", &versions, 0)?;
 
                 versions[idx].clone()
             }
@@ -353,7 +351,8 @@ fn plugin_links_menu() -> Result<()> {
         items.push("Create a new one".into());
         items.push("Back".into());
 
-        let sel = Select::new().with_prompt("Groups").items(&items).default(0).interact()?;
+        let sel = ui::menu("Groups", &items, 0)?;
+
         if sel < idx_new {
             link_action_menu(sel)?;
         } else if sel == idx_new {
@@ -386,9 +385,7 @@ fn link_action_menu(index: usize) -> Result<()> {
             }
         }
 
-        let items = ["Open group folder", "Edit toggled servers", "Delete group", "Back"];
-
-        match Select::new().with_prompt("Action").items(&items).default(0).interact()? {
+        match ui::menu("Action", &["Open group folder", "Edit toggled servers", "Delete group", "Back"], 0)? {
             0 => {
                 open_folder(&config.group_dir(&config.folder_syncs[index]).to_string_lossy().into_owned());
             }
@@ -438,7 +435,7 @@ fn create_link_menu() -> Result<()> {
     let sel = dialoguer::MultiSelect::new().with_prompt("Toggle for servers [SPACE to toggle, ENTER to confirm]").items(&labels).interact()?;
     let server_ids: Vec<String> = sel.into_iter().map(|it| config.servers[it].id.clone()).collect();
 
-    let mode_sel = Select::new().with_prompt("Sync mode").items(&["Symlink (recommended)", "Copy"]).default(0).interact()?;
+    let mode_sel = ui::menu("Sync mode", &["Symlink (recommended)", "Copy"], 0)?;
     let mode = if mode_sel == 0 { LinkMode::Symlink } else { LinkMode::Copy };
 
     let link = FolderLinks {

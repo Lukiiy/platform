@@ -1,4 +1,7 @@
+use anyhow::Result;
 use colored::Colorize;
+use dialoguer::Select;
+use std::fmt::Display;
 
 pub fn banner() {
     clear();
@@ -34,4 +37,10 @@ pub fn pause(prompt: &str) {
     let mut buf = String::new();
 
     let _ = std::io::stdin().read_line(&mut buf);
+}
+
+pub fn menu<T>(prompt: impl Into<String>, items: &[T], default: usize) -> Result<usize> where T: Display {
+    if items.is_empty() { anyhow::bail!("This menu has no items!"); }
+
+    Ok(Select::new().with_prompt(prompt.into()).items(items).default(default.min(items.len().saturating_sub(1))).interact()?)
 }
