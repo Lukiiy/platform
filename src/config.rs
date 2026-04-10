@@ -18,7 +18,10 @@ pub struct Settings {
     pub data_dir: PathBuf,
 
     #[serde(default)]
-    pub java_path: String
+    pub java_path: String,
+
+    #[serde(default)]
+    pub cleaner_log: bool
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -106,7 +109,8 @@ impl Default for Config {
         Config {
             app: Settings {
                 data_dir,
-                java_path
+                java_path,
+                cleaner_log: false
             },
 
             servers: vec![],

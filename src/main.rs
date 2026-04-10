@@ -7,7 +7,7 @@ mod ui;
 use anyhow::Result;
 use colored::Colorize;
 use config::{Config, LinkMode, FolderLinks, ServerEntry, Software};
-use dialoguer::{Confirm, Input};
+use dialoguer::{Select, Confirm, Input};
 use software::SoftwareManager;
 
 #[tokio::main]
@@ -48,8 +48,8 @@ async fn main_menu() -> Result<bool> {
     let idx_links = items.len();
     items.push("Folder Sync".into());
 
-    let idx_java = items.len();
-    items.push("Java settings".into());
+    let idx_global = items.len();
+    items.push("Global Settings".into());
 
     let idx_quit = items.len();
     items.push("Quit".into());
@@ -62,8 +62,8 @@ async fn main_menu() -> Result<bool> {
         add_server_menu().await?;
     } else if sel == idx_links {
         plugin_links_menu()?;
-    } else if sel == idx_java {
-        java_settings_menu()?;
+    } else if sel == idx_global {
+        global_settings()?;
     } else if sel == idx_quit {
         return Ok(false);
     }
@@ -461,20 +461,51 @@ fn create_link_menu() -> Result<()> {
     Ok(())
 }
 
-fn java_settings_menu() -> Result<()> {
+fn global_settings() -> Result<()> {
     let mut config = Config::load()?;
+    let mut selected = 0;
 
-    ui::banner();
+    loop {
+        ui::banner();
 
-    println!("  {} {}", "Java Path:".dimmed(), config.app.java_path.bright_cyan());
+        let java_path = format!("Java path: {}",
+            if config.app.java_path.trim().is_empty() {
+                "(not set)".dimmed().to_string()
+            } else {
+                config.app.java_path.bright_cyan().to_string()
+            }
+        );
 
-    config.app.java_path = Input::new().with_prompt("Java path").default(config.app.java_path.clone()).interact_text()?.trim().to_string();
-    config.save()?;
+        let cleaner_log = format!("Cleaner logs: {}",
+            if config.app.cleaner_log {
+                "Enabled".bright_green()
+            } else {
+                "Disabled".bright_red()
+            }
+        );
 
-    ui::ok("Java path updated.");
-    ui::pause("Press Enter...");
+        let items = [java_path, cleaner_log, "Back".into()];
+        let select = Select::new().with_prompt("Settings").items(&items).default(selected).interact()?;
 
-    Ok(())
+        selected = select;
+
+        match select {
+            0 => {
+                config.app.java_path = dialoguer::Input::new().with_prompt("Java path").default(config.app.java_path.clone()).interact_text()?.trim().to_string();
+                config.save()?;
+
+                ui::ok("Java path updated.");
+                ui::pause("Press Enter...");
+            }
+
+            1 => {
+                config.app.cleaner_log = !config.app.cleaner_log;
+                config.save()?;
+            }
+
+            _ => return Ok(())
+        }
+    }
 }
 
 fn slugify(string: &str) -> String {
