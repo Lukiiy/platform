@@ -12,13 +12,13 @@ use software::SoftwareManager;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let config = Config::load()?;
+    let mut config = Config::load()?;
 
     std::fs::create_dir_all(config.software_dir())?;
     std::fs::create_dir_all(config.servers_dir())?;
 
     loop {
-        match main_menu().await {
+        match main_menu(&mut config).await {
             Ok(true) => {}
 
             Ok(false) => break,
@@ -33,9 +33,7 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn main_menu() -> Result<bool> {
-    let config = Config::load()?;
-
+async fn main_menu(config: &mut Config) -> Result<bool> {
     ui::banner();
 
     let mut items: Vec<String> = config.servers.iter().map(|it| {
@@ -57,13 +55,13 @@ async fn main_menu() -> Result<bool> {
     let sel = ui::menu("Select a server or action", &items, 0)?;
 
     if sel < idx_add {
-        server_menu(sel).await?;
+        server_menu(config, sel).await?;
     } else if sel == idx_add {
-        add_server_menu().await?;
+        add_server_menu(config).await?;
     } else if sel == idx_links {
-        plugin_links_menu()?;
+        plugin_links_menu(config)?;
     } else if sel == idx_global {
-        global_settings()?;
+        global_settings(config)?;
     } else if sel == idx_quit {
         return Ok(false);
     }
@@ -71,9 +69,7 @@ async fn main_menu() -> Result<bool> {
     Ok(true)
 }
 
-async fn server_menu(index: usize) -> Result<()> {
-    let config = Config::load()?;
-
+async fn server_menu(config: &mut Config, index: usize) -> Result<()> {
     loop {
         ui::banner();
 
@@ -86,11 +82,11 @@ async fn server_menu(index: usize) -> Result<()> {
 
         match ui::menu("Actions", &["Start", "Check software", "Open folder", "Edit settings", "Remove", "Back"], 0)? {
             0 => start_server(index).await?,
-            1 => check_update_menu(index).await?,
+            1 => check_update_menu(config, index).await?,
             2 => open_folder(&config.servers[index].path.to_string_lossy()),
-            3 => edit_settings(index)?,
+            3 => edit_settings(config, index)?,
             4 => {
-                if remove_server(index)? {
+                if remove_server(config, index)? {
                     return Ok(());
                 }
             }
@@ -163,9 +159,7 @@ async fn start_server(index: usize) -> Result<()> {
     Ok(())
 }
 
-async fn check_update_menu(index: usize) -> Result<()> {
-    let mut config = Config::load()?;
-
+async fn check_update_menu(config: &mut Config, index: usize) -> Result<()> {
     ui::banner();
 
     let entry = &config.servers[index];
@@ -213,9 +207,7 @@ async fn check_update_menu(index: usize) -> Result<()> {
     Ok(())
 }
 
-fn edit_settings(index: usize) -> Result<()> {
-    let mut config = Config::load()?;
-
+fn edit_settings(config: &mut Config, index: usize) -> Result<()> {
     ui::banner();
 
     let entry = &config.servers[index];
@@ -239,8 +231,7 @@ fn edit_settings(index: usize) -> Result<()> {
     Ok(())
 }
 
-fn remove_server(index: usize) -> Result<bool> {
-    let mut config = Config::load()?;
+fn remove_server(config: &mut Config, index: usize) -> Result<bool> {
     let name = config.servers[index].name.clone();
 
     if Confirm::new().with_prompt(format!("Remove \"{name}\"? (files won't be deleted)")).default(false).interact()? {
@@ -256,9 +247,7 @@ fn remove_server(index: usize) -> Result<bool> {
     Ok(false)
 }
 
-async fn add_server_menu() -> Result<()> {
-    let mut config = Config::load()?;
-
+async fn add_server_menu(config: &mut Config) -> Result<()> {
     ui::banner();
 
     let action = ui::menu("Actions", &["Create a new one", "Import existing folder", "Back"], 0)?;
@@ -333,9 +322,7 @@ async fn add_server_menu() -> Result<()> {
     Ok(())
 }
 
-fn plugin_links_menu() -> Result<()> {
-    let config = Config::load()?;
-
+fn plugin_links_menu(config: &mut Config) -> Result<()> {
     loop {
         ui::banner();
 
@@ -354,18 +341,16 @@ fn plugin_links_menu() -> Result<()> {
         let sel = ui::menu("Groups", &items, 0)?;
 
         if sel < idx_new {
-            link_action_menu(sel)?;
+            link_action_menu(config, sel)?;
         } else if sel == idx_new {
-            create_link_menu()?;
+            create_link_menu(config)?;
         } else {
             return Ok(());
         }
     }
 }
 
-fn link_action_menu(index: usize) -> Result<()> {
-    let mut config = Config::load()?;
-
+fn link_action_menu(config: &mut Config, index: usize) -> Result<()> {
     loop {
         ui::banner();
 
@@ -422,9 +407,7 @@ fn link_action_menu(index: usize) -> Result<()> {
     }
 }
 
-fn create_link_menu() -> Result<()> {
-    let mut config = Config::load()?;
-
+fn create_link_menu(config: &mut Config) -> Result<()> {
     ui::banner();
 
     println!("  {}", "New Folder group".bold().bright_magenta());
@@ -461,8 +444,7 @@ fn create_link_menu() -> Result<()> {
     Ok(())
 }
 
-fn global_settings() -> Result<()> {
-    let mut config = Config::load()?;
+fn global_settings(config: &mut Config) -> Result<()> {
     let mut selected = 0;
 
     loop {
