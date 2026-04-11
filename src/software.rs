@@ -125,7 +125,7 @@ impl SoftwareManager {
                 let loader = &loaders.first().ok_or_else(|| anyhow::anyhow!("No Fabric loaders"))?.version;
                 let installer = &installers.first().ok_or_else(|| anyhow::anyhow!("No Fabric installers"))?.version;
 
-                Ok((format!("fabric-server-{mc_version}-loader{loader}-installer{installer}.jar"), format!("https://meta.fabricmc.net/v2/versions/loader/{mc_version}/{loader}/{installer}/server/jar")))
+                Ok((format!("https://meta.fabricmc.net/v2/versions/loader/{mc_version}/{loader}/{installer}/server/jar"), format!("fabric-server-mc.{mc_version}-loader.{loader}-launcher.{installer}.jar")))
             }
 
             other => Err(anyhow::anyhow!("Unknown software: {other}")),
