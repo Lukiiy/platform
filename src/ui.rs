@@ -19,7 +19,7 @@ pub fn ok(msg: &str) {
 }
 
 pub fn err(msg: &str) {
-    eprintln!(" {} {}", "Error".bright_red(), msg);
+    eprintln!(" {} {}", "Error".black().bold().on_bright_red(), msg);
 }
 
 pub fn info(msg: &str) {
