@@ -28,7 +28,7 @@ pub fn run_server(entry: &ServerEntry, jar_path: &PathBuf) -> Result<()> {
     jvm.extend(entry.extra_jvm_args.iter().cloned());
     jvm.extend(["-jar".into(), jar_path.to_string_lossy().into_owned(), "--nogui".into()]);
 
-    println!("{}", "Starting".bright_green());
+    println!("{}", " Starting ".on_bright_green().bold());
 
     let java = entry.java_path.as_deref().unwrap_or(&config.app.java_path);
 
@@ -53,7 +53,7 @@ pub fn run_server(entry: &ServerEntry, jar_path: &PathBuf) -> Result<()> {
 
     let _ = process.wait();
 
-    println!("{}", "Server process ended.".dimmed());
+    println!("{}", " Server process ended. ".on_black().dimmed().bold());
 
     let _ = thread_out.join();
     let _ = thread_error.join();
