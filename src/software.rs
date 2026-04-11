@@ -1,7 +1,10 @@
 use anyhow::{Context, Result};
+use regex::Regex;
 use reqwest::Client;
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
+
+use crate::config::Software;
 
 // todo: snapshots & more modded servers?
 
@@ -145,5 +148,26 @@ impl SoftwareManager {
         println!("Downloaded {label}");
 
         Ok(())
+    }
+}
+
+pub enum LogStyle {
+    Vanilla,
+    Paper,
+}
+
+impl LogStyle {
+    pub fn from_software(software: &Software) -> Self {
+        match software {
+            Software::Paper => LogStyle::Paper,
+            _ => LogStyle::Vanilla
+        }
+    }
+
+    pub fn get(&self) -> Regex {
+        match self {
+            LogStyle::Vanilla => Regex::new(r"^\[\d{2}:\d{2}:\d{2}\]\s+\[[^/\]]+/([A-Z]+)\]:\s*(.*)$").unwrap(),
+            LogStyle::Paper => Regex::new(r"^\[\d{2}:\d{2}:\d{2}\s+([A-Z]+)\]:\s*(.*)$").unwrap()
+        }
     }
 }
