@@ -31,8 +31,8 @@ pub fn warn(msg: &str) {
 }
 
 /// Pause until enter is pressed
-pub fn pause(prompt: &str) {
-    println!("\n{}", prompt.dimmed());
+pub fn pause(prompt: impl Display) {
+    println!("\n{}", prompt.to_string().dimmed());
 
     let mut buf = String::new();
 
