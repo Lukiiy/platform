@@ -1,12 +1,55 @@
 use anyhow::{Context, Result};
 use regex::Regex;
 use reqwest::Client;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
-use crate::config::Software;
-
 // todo: snapshots & more modded servers?
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum Software {
+    Vanilla,
+    Paper,
+    Fabric,
+    Custom
+}
+
+impl Software {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Vanilla => "vanilla",
+            Self::Paper => "paper",
+            Self::Fabric => "fabric",
+            _ => "custom"
+        }
+    }
+
+    pub fn auto_download(&self) -> bool { !matches!(self, Self::Custom) }
+
+    pub fn variants() -> &'static [(&'static str, &'static str)] { &[
+        ("vanilla", "Vanilla - Mojang server"),
+        ("paper", "Paper - Plugin support"),
+        ("fabric", "Fabric - Mod support"),
+        ("custom", "Custom - Your own jar")
+    ] }
+
+    pub fn from_str(string: &str) -> Self {
+        match string {
+            "vanilla" => Self::Vanilla,
+            "paper" => Self::Paper,
+            "fabric" => Self::Fabric,
+            _ => Self::Custom
+        }
+    }
+
+    pub fn log_regex(software: &Software) -> Regex {
+        match software {
+            Software::Paper => Regex::new(r"^\[\d{2}:\d{2}:\d{2}\s+([A-Z]+)\]:\s*(.*)$").unwrap(),
+            _ => Regex::new(r"^\[\d{2}:\d{2}:\d{2}\]\s+\[[^/\]]+/([A-Z]+)\]:\s*(.*)$").unwrap()
+        }
+    }
+}
 
 pub struct SoftwareManager {
     pub software_dir: PathBuf,
@@ -16,7 +59,10 @@ pub struct SoftwareManager {
 
 impl SoftwareManager {
     pub fn new(software_dir: PathBuf) -> Self {
-        Self { software_dir, client: Client::builder().build().unwrap() }
+        Self {
+            software_dir,
+            client: Client::builder().build().unwrap()
+        }
     }
 
     pub async fn ensure_jar(&self, software: &str, mc_version: &str) -> Result<(PathBuf, String)> {
@@ -32,7 +78,7 @@ impl SoftwareManager {
         Ok((dest, jar_name))
     }
 
-    /// Returns Some((current_jar, latest_jar)) when an update is available, None if up to date.
+    /// Returns Some((current, latest)) when an update is available, None if up to date.
     pub async fn check_update(&self, software: &str, mc_version: &str, current: Option<&str>) -> Result<Option<(Option<String>, String)>> {
         let (_, jar_name) = self.resolve(software, mc_version).await?;
         let cached = self.software_dir.join(software).join(&jar_name).exists();
@@ -148,26 +194,5 @@ impl SoftwareManager {
         println!("Downloaded {label}");
 
         Ok(())
-    }
-}
-
-pub enum LogStyle {
-    Vanilla,
-    Paper,
-}
-
-impl LogStyle {
-    pub fn from_software(software: &Software) -> Self {
-        match software {
-            Software::Paper => LogStyle::Paper,
-            _ => LogStyle::Vanilla
-        }
-    }
-
-    pub fn get(&self) -> Regex {
-        match self {
-            LogStyle::Vanilla => Regex::new(r"^\[\d{2}:\d{2}:\d{2}\]\s+\[[^/\]]+/([A-Z]+)\]:\s*(.*)$").unwrap(),
-            LogStyle::Paper => Regex::new(r"^\[\d{2}:\d{2}:\d{2}\s+([A-Z]+)\]:\s*(.*)$").unwrap()
-        }
     }
 }

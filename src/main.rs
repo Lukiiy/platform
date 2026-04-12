@@ -6,9 +6,10 @@ mod ui;
 
 use anyhow::Result;
 use colored::Colorize;
-use config::{Config, LinkMode, FolderLinks, ServerEntry, Software};
+use config::{Config, ServerEntry};
 use dialoguer::{Select, Confirm, Input};
-use software::SoftwareManager;
+use software::{Software, SoftwareManager};
+use foldersync::{FolderLinks, LinkMode};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -47,7 +48,7 @@ async fn main_menu(config: &mut Config) -> Result<bool> {
     items.push("Folder Sync".into());
 
     let idx_global = items.len();
-    items.push("Global Settings".into());
+    items.push("Global settings".into());
 
     let idx_quit = items.len();
     items.push("Quit".into());

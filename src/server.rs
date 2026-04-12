@@ -10,7 +10,7 @@ use regex::Regex;
 
 use crate::ui;
 use crate::config::{Config, ServerEntry};
-use crate::software::LogStyle;
+use crate::software::Software;
 
 pub fn run_server(entry: &ServerEntry, jar_path: &PathBuf) -> Result<()> {
     let config = Config::load()?;
@@ -42,12 +42,12 @@ pub fn run_server(entry: &ServerEntry, jar_path: &PathBuf) -> Result<()> {
     let stdout = process.stdout.take().unwrap();
     let stderr = process.stderr.take().unwrap();
 
-    let re = Arc::new(LogStyle::from_software(&entry.software).get());
+    let regex = Arc::new(Software::log_regex(&entry.software));
 
     let thread_out = thread::spawn(move || {
         if config.app.cleaner_log {
             for line in BufReader::new(stdout).lines() {
-                if let Ok(l) = line { println!("{}", format_line(&l, &re)); }
+                if let Ok(l) = line { println!("{}", format_line(&l, &regex)); }
             }
         } else {
             for line in BufReader::new(stdout).lines() {
@@ -84,8 +84,8 @@ pub fn get_custom_jar(server_path: &PathBuf) -> Result<PathBuf> {
     Err(anyhow::anyhow!("No .jar found in \"{}\".", server_path.display()))
 }
 
-fn format_line(line: &str, re: &Regex) -> String {
-    if let Some(caps) = re.captures(line) {
+fn format_line(line: &str, regex: &Regex) -> String {
+    if let Some(caps) = regex.captures(line) {
         let level = caps.get(1).map(|it| it.as_str()).unwrap_or("");
         let msg = caps.get(2).map(|it| it.as_str()).unwrap_or("");
 

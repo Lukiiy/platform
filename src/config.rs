@@ -1,6 +1,9 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use std::{fmt, path::PathBuf};
+use std::{path::PathBuf};
+
+use crate::foldersync::FolderLinks;
+use crate::software::Software;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
@@ -38,67 +41,6 @@ pub struct ServerEntry {
 
     pub jar_name: Option<String>,
     pub java_path: Option<String>
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
-pub enum Software {
-    Paper, Vanilla, Fabric, Custom
-}
-
-impl Software {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::Paper => "paper",
-            Self::Vanilla => "vanilla",
-            Self::Fabric => "fabric",
-            Self::Custom => "custom"
-        }
-    }
-
-    pub fn auto_download(&self) -> bool {
-        !matches!(self, Self::Custom)
-    }
-
-    pub fn variants() -> &'static [(&'static str, &'static str)] { &[
-        ("vanilla", "Vanilla - Mojang server"),
-        ("paper", "Paper - Plugin support"),
-        ("fabric", "Fabric - Mod support"),
-        ("custom", "Custom - Your own jar")
-    ] }
-
-    pub fn from_str(string: &str) -> Self {
-        match string {
-            "vanilla" => Self::Vanilla,
-            "paper" => Self::Paper,
-            "fabric" => Self::Fabric,
-            _ => Self::Custom
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FolderLinks {
-    pub name: String,
-    pub servers: Vec<String>,
-
-    #[serde(default)]
-    pub mode: LinkMode
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
-pub enum LinkMode {
-    #[default] Symlink, Copy
-}
-
-impl fmt::Display for LinkMode {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Self::Symlink => "symlink",
-            Self::Copy => "copy"
-        })
-    }
 }
 
 impl Default for Config {

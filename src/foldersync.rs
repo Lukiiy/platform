@@ -1,6 +1,33 @@
 use anyhow::Result;
-use std::path::Path;
-use crate::config::{LinkMode, FolderLinks, ServerEntry, Config};
+use serde::{Deserialize, Serialize};
+use std::{fmt, path::Path};
+
+use crate::config::{ServerEntry, Config};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FolderLinks {
+    pub name: String,
+    pub servers: Vec<String>,
+
+    #[serde(default)]
+    pub mode: LinkMode
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum LinkMode {
+    #[default] Symlink,
+    Copy
+}
+
+impl fmt::Display for LinkMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Symlink => "symlink",
+            Self::Copy => "copy"
+        })
+    }
+}
 
 #[derive(Default, Debug)]
 pub struct SyncReport {
