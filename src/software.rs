@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use regex::Regex;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
+use std::{path::{Path, PathBuf}, sync::LazyLock};
 
 // todo: snapshots & more modded servers?
 
@@ -35,10 +35,13 @@ impl Software {
 
     pub fn auto_download(&self) -> bool { !matches!(self, Self::Custom) }
 
-    pub fn log_regex(software: &Software) -> Regex {
+    pub fn log_regex(software: &Software) -> &'static Regex {
+        static PAPER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\[\d{2}:\d{2}:\d{2}\s+([A-Z]+)\]:\s*(.*)$").unwrap());
+        static OTHER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\[\d{2}:\d{2}:\d{2}\]\s+\[[^/\]]+/([A-Z]+)\]:\s*(.*)$").unwrap());
+
         match software {
-            Self::Paper => Regex::new(r"^\[\d{2}:\d{2}:\d{2}\s+([A-Z]+)\]:\s*(.*)$").unwrap(),
-            _ => Regex::new(r"^\[\d{2}:\d{2}:\d{2}\]\s+\[[^/\]]+/([A-Z]+)\]:\s*(.*)$").unwrap()
+            Self::Paper => &PAPER,
+            _ => &OTHER
         }
     }
 }
