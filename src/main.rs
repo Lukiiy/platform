@@ -122,7 +122,7 @@ async fn start_server(index: usize) -> Result<()> {
 
         ui::info("Verifying jar...");
 
-        match SoftwareManager::new(config.software_dir()).ensure_jar(entry.software.as_str(), &entry.mc_version).await {
+        match SoftwareManager::new(config.software_dir()).ensure_jar(entry.software, &entry.mc_version).await {
             Ok((path, jar_name)) => {
                 config.servers[index].jar_name = Some(jar_name);
                 config.save()?;
@@ -175,7 +175,7 @@ async fn check_update_menu(config: &mut Config, index: usize) -> Result<()> {
 
     let soft_manager = SoftwareManager::new(config.software_dir());
 
-    match soft_manager.check_update(entry.software.as_str(), &entry.mc_version, entry.jar_name.as_deref()).await? {
+    match soft_manager.check_update(entry.software, &entry.mc_version, entry.jar_name.as_deref()).await? {
         None => {
             ui::ok("Already up to date.");
             ui::pause("Press Enter...");
@@ -189,7 +189,7 @@ async fn check_update_menu(config: &mut Config, index: usize) -> Result<()> {
             ui::info(&format!("Latest: {}", latest.bold()));
 
             if Confirm::new().with_prompt("Download update?").default(true).interact()? {
-                match soft_manager.ensure_jar(config.servers[index].software.as_str(), &config.servers[index].mc_version).await {
+                match soft_manager.ensure_jar(entry.software, &entry.mc_version).await {
                     Ok((_, name)) => {
                         config.servers[index].jar_name = Some(name);
                         config.save()?;
@@ -259,15 +259,14 @@ async fn add_server_menu(config: &mut Config) -> Result<()> {
     let name: String = Input::new().with_prompt("Server name").interact_text()?;
     let slug = slugify(&name);
 
-    let variants = Software::variants();
-    let labels: Vec<&str> = variants.iter().map(|(_, l)| *l).collect();
-    let sw_sel = ui::menu("Software", &labels, 0)?;
-    let software = Software::from_str(variants[sw_sel].0);
+    let labels: Vec<String> = Software::EVERYTHING.iter().map(|(_, _, name, desc)| format!("{name} - {desc}")).collect();
+    let software_sel = ui::menu("Software", &labels.iter().map(|s| s.as_str()).collect::<Vec<_>>(), 0)?;
+    let software = Software::from_str(Software::EVERYTHING[software_sel].1);
 
     let mc_version: String = if software.auto_download() {
         ui::info("Fetching Minecraft versions...");
 
-        match SoftwareManager::new(config.software_dir()).minecraft_releases(30).await {
+        match SoftwareManager::new(config.software_dir()).minecraft_releases(50).await {
             Ok(versions) => {
                 let idx = ui::menu("Minecraft version", &versions, 0)?;
 
@@ -459,13 +458,7 @@ fn global_settings(config: &mut Config) -> Result<()> {
             }
         );
 
-        let cleaner_log = format!("Cleaner logs: {}",
-            if config.app.cleaner_log {
-                "Enabled".bright_green()
-            } else {
-                "Disabled".bright_red()
-            }
-        );
+        let cleaner_log = format!("Cleaner logs: {}", ui::toggleable(config.app.cleaner_log));
 
         let items = [java_path, cleaner_log, "Back".into()];
         let select = Select::new().with_prompt("Settings").items(&items).default(selected).interact()?;

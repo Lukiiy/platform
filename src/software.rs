@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 // todo: snapshots & more modded servers?
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum Software {
     Vanilla,
@@ -16,36 +16,28 @@ pub enum Software {
 }
 
 impl Software {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::Vanilla => "vanilla",
-            Self::Paper => "paper",
-            Self::Fabric => "fabric",
-            _ => "custom"
-        }
+    pub const EVERYTHING: &'static [(Self, &'static str, &'static str, &'static str)] = &[
+        (Self::Vanilla, "vanilla", "Vanilla", "Mojang server"),
+        (Self::Paper, "paper", "Paper", "Plugin support"),
+        (Self::Fabric, "fabric", "Fabric", "Mod support"),
+        (Self::Custom, "custom", "Custom", "Your own jar")
+    ];
+
+    fn entry(&self) -> &'static (Self, &'static str, &'static str, &'static str) {
+        Self::EVERYTHING.iter().find(|(s, ..)| s == self).unwrap()
+    }
+
+    pub fn as_str(&self) -> &'static str { self.entry().2 }
+
+    pub fn from_str(string: &str) -> Self {
+        Self::EVERYTHING.iter().find(|(_, id, ..)| *id == string).map_or(Self::Custom, |(v, ..)| *v)
     }
 
     pub fn auto_download(&self) -> bool { !matches!(self, Self::Custom) }
 
-    pub fn variants() -> &'static [(&'static str, &'static str)] { &[
-        ("vanilla", "Vanilla - Mojang server"),
-        ("paper", "Paper - Plugin support"),
-        ("fabric", "Fabric - Mod support"),
-        ("custom", "Custom - Your own jar")
-    ] }
-
-    pub fn from_str(string: &str) -> Self {
-        match string {
-            "vanilla" => Self::Vanilla,
-            "paper" => Self::Paper,
-            "fabric" => Self::Fabric,
-            _ => Self::Custom
-        }
-    }
-
     pub fn log_regex(software: &Software) -> Regex {
         match software {
-            Software::Paper => Regex::new(r"^\[\d{2}:\d{2}:\d{2}\s+([A-Z]+)\]:\s*(.*)$").unwrap(),
+            Self::Paper => Regex::new(r"^\[\d{2}:\d{2}:\d{2}\s+([A-Z]+)\]:\s*(.*)$").unwrap(),
             _ => Regex::new(r"^\[\d{2}:\d{2}:\d{2}\]\s+\[[^/\]]+/([A-Z]+)\]:\s*(.*)$").unwrap()
         }
     }
@@ -65,10 +57,10 @@ impl SoftwareManager {
         }
     }
 
-    pub async fn ensure_jar(&self, software: &str, mc_version: &str) -> Result<(PathBuf, String)> {
+    pub async fn ensure_jar(&self, software: Software, mc_version: &str) -> Result<(PathBuf, String)> {
         let (url, jar_name) = self.resolve(software, mc_version).await?;
 
-        let dest = self.software_dir.join(software).join(&jar_name);
+        let dest = self.software_dir.join(software.as_str().to_lowercase()).join(&jar_name);
         if !dest.exists() {
             std::fs::create_dir_all(dest.parent().unwrap())?;
 
@@ -79,9 +71,9 @@ impl SoftwareManager {
     }
 
     /// Returns Some((current, latest)) when an update is available, None if up to date.
-    pub async fn check_update(&self, software: &str, mc_version: &str, current: Option<&str>) -> Result<Option<(Option<String>, String)>> {
+    pub async fn check_update(&self, software: Software, mc_version: &str, current: Option<&str>) -> Result<Option<(Option<String>, String)>> {
         let (_, jar_name) = self.resolve(software, mc_version).await?;
-        let cached = self.software_dir.join(software).join(&jar_name).exists();
+        let cached = self.software_dir.join(software.as_str()).join(&jar_name).exists();
 
         if cached && current.map_or(false, |c| c == jar_name) {
             Ok(None)
@@ -109,24 +101,9 @@ impl SoftwareManager {
         Ok(manifest.versions.into_iter().filter(|v| v.kind == "release").take(limit).map(|v| v.id).collect())
     }
 
-    async fn resolve(&self, software: &str, mc_version: &str) -> Result<(String, String)> {
+    async fn resolve(&self, software: Software, mc_version: &str) -> Result<(String, String)> {
         match software {
-            "paper" => {
-                let url = format!("https://fill.papermc.io/v3/projects/paper/versions/{mc_version}/builds");
-
-                let answer: serde_json::Value = self.get_json(&url).await.context("Paper API error")?;
-
-                let build = answer.as_array()
-                    .and_then(|arr| arr.iter().find(|b| b["channel"].as_str() == Some("STABLE")))
-                    .ok_or_else(|| anyhow::anyhow!("No stable Paper build for {mc_version}"))?;
-
-                let name = build["downloads"]["server:default"]["name"].as_str().ok_or_else(|| anyhow::anyhow!("Paper: missing download name"))?.to_string();
-                let dl = build["downloads"]["server:default"]["url"].as_str().ok_or_else(|| anyhow::anyhow!("Paper: missing download url"))?.to_string();
-
-                Ok((dl, name))
-            }
-
-            "vanilla" => {
+            Software::Vanilla => {
                 #[derive(Deserialize)]
                 struct Manifest {
                     versions: Vec<ManifestEntry>
@@ -162,7 +139,22 @@ impl SoftwareManager {
                 Ok((meta.downloads.server.url, name))
             }
 
-            "fabric" => {
+            Software::Paper => {
+                let url = format!("https://fill.papermc.io/v3/projects/paper/versions/{mc_version}/builds");
+
+                let answer: serde_json::Value = self.get_json(&url).await.context("Paper API error")?;
+
+                let build = answer.as_array()
+                    .and_then(|arr| arr.iter().find(|b| b["channel"].as_str() == Some("STABLE")))
+                    .ok_or_else(|| anyhow::anyhow!("No stable Paper build for {mc_version}"))?;
+
+                let name = build["downloads"]["server:default"]["name"].as_str().ok_or_else(|| anyhow::anyhow!("Paper: missing download name"))?.to_string();
+                let dl = build["downloads"]["server:default"]["url"].as_str().ok_or_else(|| anyhow::anyhow!("Paper: missing download url"))?.to_string();
+
+                Ok((dl, name))
+            }
+
+            Software::Fabric => {
                 #[derive(Deserialize)]
                 struct Entry {
                     version: String
@@ -177,7 +169,7 @@ impl SoftwareManager {
                 Ok((format!("https://meta.fabricmc.net/v2/versions/loader/{mc_version}/{loader}/{installer}/server/jar"), format!("fabric-server-mc.{mc_version}-loader.{loader}-launcher.{installer}.jar")))
             }
 
-            other => Err(anyhow::anyhow!("Unknown software: {other}")),
+            _ => Err(anyhow::anyhow!("Unknown software!"))
         }
     }
 

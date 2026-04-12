@@ -1,5 +1,5 @@
 use anyhow::Result;
-use colored::Colorize;
+use colored::{ColoredString, Colorize};
 use dialoguer::Select;
 use std::fmt::Display;
 
@@ -43,4 +43,12 @@ pub fn menu<T>(prompt: impl Into<String>, items: &[T], default: usize) -> Result
     if items.is_empty() { anyhow::bail!("This menu has no items!"); }
 
     Ok(Select::new().with_prompt(prompt.into()).items(items).default(default.min(items.len().saturating_sub(1))).interact()?)
+}
+
+pub fn toggleable(bool: bool) -> ColoredString {
+    if bool {
+        " ON ".on_bright_green().into()
+    } else {
+        " OFF ".on_bright_red().into()
+    }
 }
