@@ -47,7 +47,7 @@ pub fn menu<T>(prompt: impl Into<String>, items: &[T], default: usize) -> Result
 
 pub fn toggleable(bool: bool) -> ColoredString {
     if bool {
-        " ON ".on_bright_green().into()
+        " ON ".black().on_bright_green().into()
     } else {
         " OFF ".on_bright_red().into()
     }

@@ -48,7 +48,7 @@ async fn main_menu(config: &mut Config) -> Result<bool> {
     items.push("Folder Sync".into());
 
     let idx_global = items.len();
-    items.push("Global settings".into());
+    items.push("Global Settings".into());
 
     let idx_quit = items.len();
     items.push("Quit".into());
@@ -60,7 +60,7 @@ async fn main_menu(config: &mut Config) -> Result<bool> {
     } else if sel == idx_add {
         add_server_menu(config).await?;
     } else if sel == idx_links {
-        plugin_links_menu(config)?;
+        folder_sync_menu(config)?;
     } else if sel == idx_global {
         global_settings(config)?;
     } else if sel == idx_quit {
@@ -322,7 +322,7 @@ async fn add_server_menu(config: &mut Config) -> Result<()> {
     Ok(())
 }
 
-fn plugin_links_menu(config: &mut Config) -> Result<()> {
+fn folder_sync_menu(config: &mut Config) -> Result<()> {
     loop {
         ui::banner();
 
@@ -450,6 +450,10 @@ fn global_settings(config: &mut Config) -> Result<()> {
     loop {
         ui::banner();
 
+        println!("{}", "Global Settings".bold().bright_magenta());
+        println!("{}", "Options that apply globally to the app and all servers.".dimmed());
+        println!();
+
         let java_path = format!("Java path: {}",
             if config.app.java_path.trim().is_empty() {
                 "(not set)".dimmed().to_string()
@@ -460,8 +464,7 @@ fn global_settings(config: &mut Config) -> Result<()> {
 
         let cleaner_log = format!("Cleaner logs: {}", ui::toggleable(config.app.cleaner_log));
 
-        let items = [java_path, cleaner_log, "Back".into()];
-        let select = Select::new().with_prompt("Settings").items(&items).default(selected).interact()?;
+        let select = Select::new().with_prompt("Settings").items(&[java_path, cleaner_log, "Back".into()]).default(selected).interact()?;
 
         selected = select;
 
