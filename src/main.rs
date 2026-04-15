@@ -83,9 +83,9 @@ async fn server_menu(config: &mut Config, index: usize) -> Result<()> {
 
         match ui::menu("Actions", &["Start", "Check software", "Open folder", "Edit settings", "Remove", "Back"], 0)? {
             0 => start_server(index).await?,
-            1 => check_update_menu(config, index).await?,
+            1 => software_menu(config, index).await?,
             2 => open_folder(&config.servers[index].path.to_string_lossy()),
-            3 => edit_settings(config, index)?,
+            3 => server_settings(config, index)?,
             4 => {
                 if remove_server(config, index)? {
                     return Ok(());
@@ -160,12 +160,12 @@ async fn start_server(index: usize) -> Result<()> {
     Ok(())
 }
 
-async fn check_update_menu(config: &mut Config, index: usize) -> Result<()> {
+async fn software_menu(config: &mut Config, index: usize) -> Result<()> {
     ui::banner();
 
     let entry = &config.servers[index];
     if !entry.software.auto_download() {
-        ui::warn("Custom software: auto updates are not supported.");
+        ui::warn("Custom software: Auto updates are not supported.");
         ui::pause("Press Enter...");
 
         return Ok(());
@@ -208,28 +208,89 @@ async fn check_update_menu(config: &mut Config, index: usize) -> Result<()> {
     Ok(())
 }
 
-fn edit_settings(config: &mut Config, index: usize) -> Result<()> {
-    ui::banner();
+fn server_settings(config: &mut Config, index: usize) -> Result<()> {
+    let mut selected = 0;
 
-    let entry = &config.servers[index];
-    let ram: String = Input::new().with_prompt("RAM (MB)").default(entry.ram_mb.to_string()).interact_text()?;
-    let args: String = Input::new().with_prompt("Extra JVM args (Can leave blank)").default(entry.extra_jvm_args.join(" ")).allow_empty(true).interact_text()?;
-    let java: String = Input::new().with_prompt("Java path (Can leave blank)").default(entry.java_path.clone().unwrap_or_default()).allow_empty(true).interact_text()?;
+    loop {
+        ui::banner();
 
-    if let Ok(r) = ram.trim().parse::<u32>() {
-        config.servers[index].ram_mb = r;
-    } else {
-        ui::warn("Invalid RAM, falling back to previous.");
+        println!("{}", "Server Settings".bold().bright_magenta());
+        println!("{}", "Options that apply only to this server.".dimmed());
+        println!();
+
+        let entry = &config.servers[index];
+
+        let ram = format!("RAM: {}", format!("{} MB", entry.ram_mb).bright_cyan().to_string());
+
+        let extra_args = format!("Extra JVM args: {}",
+            if entry.extra_jvm_args.is_empty() {
+                "(not set)".dimmed().to_string()
+            } else {
+                entry.extra_jvm_args.join(" ").bright_cyan().to_string()
+            }
+        );
+
+        let java_path = format!("Java path: {}",
+            match entry.java_path.as_deref() {
+                Some(path) if !path.trim().is_empty() => path.bright_cyan().to_string(),
+
+                _ => "(Default)".dimmed().to_string()
+            }
+        );
+
+        let select = Select::new().with_prompt("Settings").items(&[ram, extra_args, java_path, "Back".into()]).default(selected).interact()?;
+
+        selected = select;
+
+        match select {
+            0 => {
+                let current = config.servers[index].ram_mb.to_string();
+                let ram = Input::<String>::new().with_prompt("RAM (MB)").default(current).interact_text()?;
+
+                match ram.trim().parse::<u32>() {
+                    Ok(value) => {
+                        config.servers[index].ram_mb = value;
+                        config.save()?;
+
+                        ui::ok("RAM updated!");
+                    }
+
+                    Err(_) => ui::warn("Invalid value, keeping the previous setting.")
+                }
+
+                ui::pause("Press Enter...");
+            }
+
+            1 => {
+                let current = config.servers[index].extra_jvm_args.join(" ");
+                let args = Input::<String>::new().with_prompt("Extra JVM args").allow_empty(true).default(current).interact_text()?;
+
+                config.servers[index].extra_jvm_args = args.split_whitespace().map(String::from).collect();
+                config.save()?;
+
+                ui::ok("Extra JVM args updated!");
+                ui::pause("Press Enter...");
+            }
+
+            2 => {
+                let current = config.servers[index].java_path.clone().unwrap_or_default();
+                let java = Input::<String>::new().with_prompt("Java path").allow_empty(true).default(current).interact_text()?;
+                let trimmed = java.trim();
+
+                config.servers[index].java_path = if trimmed.is_empty() {
+                    None
+                } else {
+                    Some(trimmed.to_string())
+                };
+
+                config.save()?;
+                ui::ok("Java path updated!");
+                ui::pause("Press Enter...");
+            }
+
+            _ => return Ok(())
+        }
     }
-
-    config.servers[index].extra_jvm_args = args.split_whitespace().map(String::from).collect();
-    config.servers[index].java_path = if java.trim().is_empty() { None } else { Some(java.trim().into()) };
-    config.save()?;
-
-    ui::ok("Settings saved.");
-    ui::pause("Press Enter...");
-
-    Ok(())
 }
 
 fn remove_server(config: &mut Config, index: usize) -> Result<bool> {
