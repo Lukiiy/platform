@@ -64,7 +64,8 @@ pub fn run_server(entry: &ServerEntry, jar_path: &PathBuf) -> Result<()> {
 
     let _ = process.wait();
 
-    ui::pause(" Server process ended. ".on_black().dimmed().bold());
+    println!("{}", " Server process ended. ".on_black().dimmed().bold());
+    ui::pause("Press Enter...");
 
     let _ = thread_out.join();
     let _ = thread_error.join();
