@@ -77,14 +77,11 @@ impl SoftwareManager {
 
     /// Returns Some((current, latest)) when an update is available, None if up to date.
     pub async fn check_update(&self, software: Software, mc_version: &str, current: Option<&str>) -> Result<Option<(Option<String>, String)>> {
-        let (_, jar_name) = self.resolve(software, mc_version).await?;
-        let cached = self.software_dir.join(software.as_str()).join(&jar_name).exists();
+        let (_, latest) = self.resolve(software, mc_version).await?;
 
-        if cached && current.map_or(false, |c| c == jar_name) {
-            Ok(None)
-        } else {
-            Ok(Some((current.map(String::from), jar_name)))
-        }
+        if current.map_or(false, |c| c == latest) { return Ok(None); }
+
+        Ok(Some((current.map(String::from), latest)))
     }
 
     pub async fn minecraft_releases(&self, limit: usize) -> Result<Vec<String>> {
