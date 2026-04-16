@@ -11,6 +11,7 @@ use std::{path::{Path, PathBuf}, sync::LazyLock};
 pub enum Software {
     Vanilla,
     Paper,
+    Folia,
     Fabric,
     Custom
 }
@@ -19,6 +20,7 @@ impl Software {
     pub const EVERYTHING: &'static [(Self, &'static str, &'static str, &'static str)] = &[
         (Self::Vanilla, "vanilla", "Vanilla", "Mojang server"),
         (Self::Paper, "paper", "Paper", "Plugin support"),
+        (Self::Folia, "folia", "Folia", "Multithreaded & Plugin support"),
         (Self::Fabric, "fabric", "Fabric", "Mod support"),
         (Self::Custom, "custom", "Custom", "Your own jar")
     ];
@@ -40,7 +42,7 @@ impl Software {
         static OTHER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\[\d{2}:\d{2}:\d{2}\]\s+\[[^/\]]+/([A-Z]+)\]:\s*(.*)$").unwrap());
 
         match software {
-            Self::Paper => &PAPER,
+            Self::Paper | Self::Folia => &PAPER,
             _ => &OTHER
         }
     }
@@ -142,20 +144,9 @@ impl SoftwareManager {
                 Ok((meta.downloads.server.url, name))
             }
 
-            Software::Paper => {
-                let url = format!("https://fill.papermc.io/v3/projects/paper/versions/{mc_version}/builds");
+            Software::Paper => self.resolve_papermc_dls("paper", mc_version, false).await,
 
-                let answer: serde_json::Value = self.get_json(&url).await.context("Paper API error")?;
-
-                let build = answer.as_array()
-                    .and_then(|arr| arr.iter().find(|b| b["channel"].as_str() == Some("STABLE")))
-                    .ok_or_else(|| anyhow::anyhow!("No stable Paper build for {mc_version}"))?;
-
-                let name = build["downloads"]["server:default"]["name"].as_str().ok_or_else(|| anyhow::anyhow!("Paper: missing download name"))?.to_string();
-                let dl = build["downloads"]["server:default"]["url"].as_str().ok_or_else(|| anyhow::anyhow!("Paper: missing download url"))?.to_string();
-
-                Ok((dl, name))
-            }
+            Software::Folia => self.resolve_papermc_dls("folia", mc_version, false).await,
 
             Software::Fabric => {
                 #[derive(Deserialize)]
@@ -189,5 +180,33 @@ impl SoftwareManager {
         println!("Downloaded {label}");
 
         Ok(())
+    }
+
+    async fn resolve_papermc_dls(&self, project: &str, mc_version: &str, nonstable_fallback: bool) -> Result<(String, String)> { // todo
+        #[derive(Deserialize)]
+        struct Build {
+            channel: Option<String>,
+
+            #[serde(rename = "downloads")]
+            downloads: serde_json::Value
+        }
+
+        let url = format!("https://fill.papermc.io/v3/projects/{project}/versions/{mc_version}/builds");
+        let builds: Vec<Build> = self.get_json(&url).await.with_context(|| format!("{project} API error"))?;
+
+        let build = builds.iter().find(|b| b.channel.as_deref() == Some("STABLE"))
+            .or_else(|| {
+                if nonstable_fallback { builds.first() } else { None }
+            })
+            .ok_or_else(|| {
+                if nonstable_fallback { anyhow::anyhow!("No Folia build for {mc_version}") } else { anyhow::anyhow!("No stable Paper build for {mc_version}") }
+            })?;
+
+        let asset = &build.downloads["server:default"];
+
+        let name = asset["name"].as_str().ok_or_else(|| anyhow::anyhow!("Missing name"))?.to_string();
+        let url = asset["url"].as_str().ok_or_else(|| anyhow::anyhow!("Missing url"))?.to_string();
+
+        Ok((url, name))
     }
 }
