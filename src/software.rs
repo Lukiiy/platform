@@ -13,6 +13,7 @@ pub enum Software {
     Paper,
     Folia,
     Fabric,
+    NeoForge,
     Custom
 }
 
@@ -22,6 +23,7 @@ impl Software {
         (Self::Paper, "paper", "Paper", "Plugin support"),
         (Self::Folia, "folia", "Folia", "Multithreaded & Plugin support"),
         (Self::Fabric, "fabric", "Fabric", "Mod support"),
+        (Self::NeoForge, "neoforge", "NeoForge", "Mod support"),
         (Self::Custom, "custom", "Custom", "Your own jar")
     ];
 
@@ -36,6 +38,10 @@ impl Software {
     }
 
     pub fn auto_download(&self) -> bool { !matches!(self, Self::Custom) }
+
+    pub fn is_installer(&self) -> bool { matches!(self, Self::NeoForge) }
+
+    pub fn menu_labels() -> Vec<String> { Self::EVERYTHING.iter().map(|(_, _, name, desc)| format!("{name} - {desc}")).collect() }
 
     pub fn log_regex(software: &Software) -> &'static Regex {
         static PAPER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\[\d{2}:\d{2}:\d{2}\s+([A-Z]+)\]:\s*(.*)$").unwrap());
@@ -160,12 +166,32 @@ impl SoftwareManager {
                 Ok((format!("https://meta.fabricmc.net/v2/versions/loader/{mc_version}/{loader}/{installer}/server/jar"), format!("fabric-server-mc.{mc_version}-loader.{loader}-launcher.{installer}.jar")))
             }
 
+            Software::NeoForge => { // why
+                let parts: Vec<&str> = mc_version.trim_start_matches("1.").splitn(2, '.').collect();
+
+                let neo_prefix = match parts.as_slice() {
+                    [minor] => format!("{minor}.0."),
+                    [minor, patch] => format!("{minor}.{patch}."),
+                    _ => anyhow::bail!("Unrecognised MC version format: {mc_version}")
+                };
+
+                let xml = self.get_text("https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml").await?;
+                let version = Self::resolve_neoforge_maven(&xml, |v| v.starts_with(&neo_prefix) && !v.ends_with("-beta")).or_else(|| Self::resolve_neoforge_maven(&xml, |v| v.starts_with(&neo_prefix))).ok_or_else(|| anyhow::anyhow!("No NeoForge version for {mc_version}"))?;
+                let jar_name = format!("neoforge-{version}-installer.jar");
+
+                Ok((format!("https://maven.neoforged.net/releases/net/neoforged/neoforge/{version}/{jar_name}"), jar_name))
+            }
+
             _ => Err(anyhow::anyhow!("Unknown software!"))
         }
     }
 
     async fn get_json<T: serde::de::DeserializeOwned>(&self, url: &str) -> Result<T> {
         Ok(self.client.get(url).send().await?.error_for_status()?.json::<T>().await?)
+    }
+
+    async fn get_text(&self, url: &str) -> Result<String> {
+        Ok(self.client.get(url).send().await?.error_for_status()?.text().await?)
     }
 
     async fn download(&self, url: &str, dest: &Path, label: &str) -> Result<()> {
@@ -177,6 +203,14 @@ impl SoftwareManager {
         println!("Downloaded {label}");
 
         Ok(())
+    }
+
+    fn resolve_neoforge_maven(xml: &str, predicate: impl Fn(&str) -> bool) -> Option<String> {
+        xml.lines().filter_map(|line| {
+            let line = line.trim();
+
+            line.strip_prefix("<version>")?.strip_suffix("</version>")
+        }).filter(|it| predicate(it)).last().map(String::from)
     }
 
     async fn resolve_papermc_dls(&self, project: &str, mc_version: &str, nonstable_fallback: bool) -> Result<(String, String)> { // todo
