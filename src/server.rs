@@ -19,6 +19,7 @@ pub fn run_server(entry: &ServerEntry, jar_path: &PathBuf) -> Result<()> {
     if !eula.exists() {
         if !Confirm::new().with_prompt("Accept the Minecraft EULA? (https://aka.ms/MinecraftEULA)").default(false).interact()? {
             ui::warn("EULA not accepted, cancelling.");
+
             return Ok(());
         }
 
