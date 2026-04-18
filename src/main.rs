@@ -70,7 +70,7 @@ async fn server_menu(config: &mut Config, index: usize) -> Result<()> {
         println!(" {} {}", "Version:".dimmed(), server.mc_version.bright_cyan());
         println!();
 
-        match ui::menu("Actions", &["Start", "Check software", "Open folder", "Edit settings", "Remove", "Back"], 0)? {
+        match ui::menu("Actions", &["Start", "Software Menu", "Open folder", "Edit settings", "Remove", "Back"], 0)? {
             0 => start_server(index).await?,
             1 => software_menu(config, index).await?,
             2 => open_folder(&config.servers[index].path.to_string_lossy()),
@@ -150,51 +150,96 @@ async fn start_server(index: usize) -> Result<()> {
 }
 
 async fn software_menu(config: &mut Config, index: usize) -> Result<()> {
-    ui::banner();
-
-    let entry = &config.servers[index];
-    if !entry.software.auto_download() {
-        ui::warn("Custom software: Auto updates are not supported.");
-        ui::pause("Press Enter...");
-
-        return Ok(());
-    }
-
-    ui::info(&format!("Checking {} {} for updates...", entry.software.as_str(), entry.mc_version));
-
     let soft_manager = SoftwareManager::new(config.software_dir());
 
-    match soft_manager.check_update(entry.software, &entry.mc_version, entry.jar_name.as_deref()).await? {
-        None => {
-            ui::ok("Already up to date.");
-            ui::pause("Press Enter...");
-        }
+    loop {
+        ui::banner();
 
-        Some((current, latest)) => {
-            if let Some(c) = &current {
-                ui::info(&format!("Current: {c}"));
-            }
+        println!("{}", "Software Menu".bold().bright_magenta());
+        println!("{}", "Change software and/or version for this server.".dimmed());
+        println!();
 
-            ui::info(&format!("Latest: {}", latest.bold()));
+        let entry = &config.servers[index];
+        let current_software = entry.software;
+        let current_version = entry.mc_version.clone();
+        let current_jar = entry.jar_name.clone();
 
-            if Confirm::new().with_prompt("Download update?").default(true).interact()? {
-                match soft_manager.ensure_jar(entry.software, &entry.mc_version).await {
-                    Ok((_, name)) => {
-                        config.servers[index].jar_name = Some(name);
-                        config.save()?;
+        println!(" {} {} {} {}", "Current:".dimmed(), current_software.as_str().bright_green(), current_version.bright_cyan(), current_jar.as_deref().unwrap_or("???").white().italic());
+        println!();
 
-                        ui::ok("Updated.");
+        match ui::menu("Actions", &["Check for update", "Change software/version", "Back"], 0)? {
+            0 => {
+                if !current_software.auto_download() {
+                    ui::warn("Custom software: Auto updates are not supported.");
+                    ui::pause("Press Enter...");
+
+                    continue;
+                }
+
+                ui::info(&format!("Checking {} {} for updates...", current_software.as_str(), current_version));
+
+                match soft_manager.check_update(current_software, &current_version, current_jar.as_deref()).await? {
+                    None => {
+                        ui::ok("Already up to date.");
+                        ui::pause("Press Enter...");
                     }
 
-                    Err(e) => ui::err(&e.to_string())
+                    Some((current, latest)) => {
+                        if let Some(c) = current { ui::info(&format!("Current: {c}")); }
+
+                        ui::info(&format!("Latest: {}", latest.bold()));
+
+                        if Confirm::new().with_prompt("Download update?").default(true).interact()? {
+                            match soft_manager.ensure_jar(current_software, &current_version).await {
+                                Ok((_, name)) => {
+                                    let changed = current_jar.as_deref() != Some(name.as_str());
+
+                                    config.servers[index].jar_name = Some(name);
+                                    config.save()?;
+
+                                    if changed { ui::ok("Updated."); } else { ui::info("Nothing changed."); }
+                                }
+
+                                Err(e) => ui::err(&e.to_string())
+                            }
+                        }
+
+                        ui::pause("Press Enter...");
+                    }
                 }
             }
 
-            ui::pause("Press Enter...");
+            1 => { // OH MY AAAAAAAAAAAAAAAAAAAAAAAA
+                let soft_manager = SoftwareManager::new(config.software_dir());
+                let (target_software, target_version) = select_software(&soft_manager).await?;
+
+                if target_software != entry.software { ui::warn("This will change software! May require some reconfiguration."); }
+                if target_version != entry.mc_version { ui::warn("This will change version!"); }
+
+                if Confirm::new().with_prompt("Proceed?").default(false).interact()? {
+                    match soft_manager.ensure_jar(target_software, &target_version).await {
+                        Ok((_, name)) => {
+                            let changed = target_software != entry.software || target_version != entry.mc_version || entry.jar_name.as_deref() != Some(name.as_str());
+
+                            config.servers[index].software = target_software;
+                            config.servers[index].mc_version = target_version;
+                            config.servers[index].jar_name = Some(name);
+
+                            config.save()?;
+
+                            if changed { ui::ok("Changed."); } else { ui::info("Nothing changed."); }
+                        }
+
+                        Err(e) => ui::err(&e.to_string())
+                    }
+
+                    ui::pause("Press Enter...");
+                }
+            }
+
+            _ => return Ok(())
         }
     }
-
-    Ok(())
 }
 
 fn server_settings(config: &mut Config, index: usize) -> Result<()> {
@@ -266,13 +311,10 @@ fn server_settings(config: &mut Config, index: usize) -> Result<()> {
                 let java = Input::<String>::new().with_prompt("Java path").allow_empty(true).default(current).interact_text()?;
                 let trimmed = java.trim();
 
-                config.servers[index].java_path = if trimmed.is_empty() {
-                    None
-                } else {
-                    Some(trimmed.to_string())
-                };
+                config.servers[index].java_path = if trimmed.is_empty() { None } else { Some(trimmed.to_string()) };
 
                 config.save()?;
+
                 ui::ok("Java path updated!");
                 ui::pause("Press Enter...");
             }
@@ -307,33 +349,13 @@ async fn add_server_menu(config: &mut Config) -> Result<()> {
     let is_new = action == 0;
 
     let name: String = Input::new().with_prompt("Server name").interact_text()?;
-    let slug = slugify(&name);
+    let id = slugify(&name);
 
-    let labels: Vec<String> = Software::EVERYTHING.iter().map(|(_, _, name, desc)| format!("{name} - {desc}")).collect();
-    let software_sel = ui::menu("Software", &labels.iter().map(|s| s.as_str()).collect::<Vec<_>>(), 0)?;
-    let software = Software::from_str(Software::EVERYTHING[software_sel].1);
-
-    let mc_version: String = if software.auto_download() {
-        ui::info("Fetching Minecraft versions...");
-
-        match SoftwareManager::new(config.software_dir()).minecraft_releases(50).await {
-            Ok(versions) => {
-                let idx = ui::menu("Minecraft version", &versions, 0)?;
-
-                versions[idx].clone()
-            }
-
-            Err(_) => Input::new().with_prompt("Minecraft version").interact_text()?,
-        }
-    } else {
-        Input::new().with_prompt("Minecraft version").interact_text()?
-    };
-
-    let ram: String = Input::new().with_prompt("RAM (MB)").default("2048".into()).interact_text()?;
-    let ram_mb = ram.trim().parse::<u32>().unwrap_or(2048);
+    let (software, mc_version) = select_software(&SoftwareManager::new(config.software_dir())).await?;
+    let ram_mb: u32 = 2048;
 
     let server_path = if is_new {
-        let p = config.servers_dir().join(&slug);
+        let p = config.servers_dir().join(&id);
 
         std::fs::create_dir_all(&p)?;
 
@@ -353,7 +375,7 @@ async fn add_server_menu(config: &mut Config) -> Result<()> {
     };
 
     config.servers.push(ServerEntry {
-        id: slug,
+        id,
         name: name.clone(),
         path: server_path,
         software,
@@ -423,9 +445,7 @@ fn link_action_menu(config: &mut Config, index: usize) -> Result<()> {
         println!();
 
         match ui::menu("Actions", &["Open group folder", "Edit toggled servers", "Delete group", "Back"], 0)? {
-            0 => {
-                open_folder(&config.group_dir(&config.folder_syncs[index]).to_string_lossy().into_owned());
-            }
+            0 => open_folder(&config.group_dir(&config.folder_syncs[index]).to_string_lossy().into_owned()),
 
             1 => {
                 let labels: Vec<String> = config.servers.iter().map(|it| it.name.clone()).collect();
@@ -535,6 +555,26 @@ fn global_settings(config: &mut Config) -> Result<()> {
             _ => return Ok(())
         }
     }
+}
+
+async fn select_software(soft_manager: &SoftwareManager) -> Result<(Software, String)> {
+    let labels = Software::menu_labels();
+    let label_refs: Vec<&str> = labels.iter().map(String::as_str).collect();
+    let software = Software::EVERYTHING[ui::menu("Software", &label_refs, 0)?].0;
+
+    let mc_version = if software.auto_download() {
+        ui::info("Fetching Minecraft versions...");
+
+        match soft_manager.minecraft_releases(60).await {
+            Ok(versions) => versions[ui::menu("Minecraft version", &versions, 0)?].clone(),
+
+            Err(_) => Input::new().with_prompt("Minecraft version").interact_text()?
+        }
+    } else {
+        Input::new().with_prompt("Minecraft version").interact_text()?
+    };
+
+    Ok((software, mc_version))
 }
 
 fn slugify(string: &str) -> String {
