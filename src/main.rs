@@ -41,30 +41,19 @@ async fn main_menu(config: &mut Config) -> Result<bool> {
         format!("• {} {} {}", it.name.bright_green().bold(), format!("[{}]", it.software.as_str()).bright_cyan(), it.mc_version.dimmed())
     }).collect();
 
-    let idx_add = items.len();
+    let act = items.len();
+
     items.push("Add server".into());
-
-    let idx_links = items.len();
     items.push("Folder Sync".into());
-
-    let idx_global = items.len();
     items.push("Global Settings".into());
-
-    let idx_quit = items.len();
     items.push("Quit".into());
 
-    let sel = ui::menu("Select a server or action", &items, 0)?;
-
-    if sel < idx_add {
-        server_menu(config, sel).await?;
-    } else if sel == idx_add {
-        add_server_menu(config).await?;
-    } else if sel == idx_links {
-        folder_sync_menu(config)?;
-    } else if sel == idx_global {
-        global_settings(config)?;
-    } else if sel == idx_quit {
-        return Ok(false);
+    match ui::menu("Select a server or action", &items, 0)? {
+        i if i < act => server_menu(config, i).await?,
+        i if i == act => add_server_menu(config).await?,
+        i if i == act + 1 => folder_sync_menu(config)?,
+        i if i == act + 2 => global_settings(config)?,
+        _ => return Ok(false)
     }
 
     Ok(true)
