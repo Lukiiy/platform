@@ -3,7 +3,7 @@ use colored::Colorize;
 use dialoguer::Confirm;
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
+use std::process::{Command, Stdio, Child};
 use std::thread;
 use std::sync::Arc;
 use regex::Regex;
@@ -32,55 +32,51 @@ pub fn run_server(entry: &ServerEntry, jar_path: &PathBuf) -> Result<()> {
     jvm.extend(entry.extra_jvm_args.iter().cloned());
     jvm.extend(["-jar".into(), jar_path.to_string_lossy().into_owned(), "--nogui".into()]);
 
-    println!("{}", " Starting ".black().on_bright_green().bold());
-
     let java = entry.java_path.as_deref().unwrap_or(&config.app.java_path);
 
     let mut process = Command::new(java).args(&jvm).current_dir(&entry.path)
         .stdin(Stdio::inherit()).stdout(Stdio::piped()).stderr(Stdio::piped())
         .spawn().context("Failed to launch Java... Is it installed?")?;
 
+    println!("{}", " Starting ".black().on_bright_green().bold());
+
+    stream_process(&config, &mut process, &entry.software);
+
+    ui::pause(format!("{}\nPress Enter...", " Server process ended. ".on_black().dimmed().bold()));
+
+    Ok(())
+}
+
+fn stream_process(config: &Config, process: &mut Child, software: &Software) {
     let stdout = process.stdout.take().unwrap();
     let stderr = process.stderr.take().unwrap();
-
-    let regex = Arc::new(Software::log_regex(&entry.software));
+    let regex = Arc::new(Software::log_regex(software));
+    let cleaner = config.app.cleaner_log;
 
     let thread_out = thread::spawn(move || {
-        if config.app.cleaner_log {
-            for line in BufReader::new(stdout).lines() {
-                if let Ok(l) = line { println!("{}", format_line(&l, &regex)); }
-            }
-        } else {
-            for line in BufReader::new(stdout).lines() {
-                if let Ok(l) = line { println!("{l}"); }
+        for line in BufReader::new(stdout).lines() {
+            if let Ok(l) = line {
+                if cleaner { println!("{}", format_line(&l, &regex)); } else { println!("{l}"); }
             }
         }
     });
 
-    let thread_error = thread::spawn(move || {
+    let thread_err = thread::spawn(move || {
         for line in BufReader::new(stderr).lines() {
             if let Ok(l) = line { eprintln!("{}", l.bright_red()); }
         }
     });
 
     let _ = process.wait();
-
-    println!("{}", " Server process ended. ".on_black().dimmed().bold());
-    ui::pause("Press Enter...");
-
     let _ = thread_out.join();
-    let _ = thread_error.join();
-
-    Ok(())
+    let _ = thread_err.join();
 }
 
 pub fn get_custom_jar(server_path: &PathBuf) -> Result<PathBuf> {
     for entry in std::fs::read_dir(server_path)? {
         let path = entry?.path();
 
-        if path.extension().map_or(false, |e| e == "jar") {
-            return Ok(path);
-        }
+        if path.extension().map_or(false, |e| e == "jar") { return Ok(path); }
     }
 
     Err(anyhow::anyhow!("No .jar found in \"{}\".", server_path.display()))
