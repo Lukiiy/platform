@@ -147,9 +147,9 @@ impl SoftwareManager {
                 Ok((meta.downloads.server.url, name))
             }
 
-            Software::Paper => self.resolve_papermc_dls("paper", mc_version, false).await,
+            Software::Paper => self.resolve_papermc_dls("paper", mc_version, true).await,
 
-            Software::Folia => self.resolve_papermc_dls("folia", mc_version, false).await,
+            Software::Folia => self.resolve_papermc_dls("folia", mc_version, true).await,
 
             Software::Fabric => {
                 #[derive(Deserialize)]
