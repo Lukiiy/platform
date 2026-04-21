@@ -46,9 +46,11 @@ impl Software {
     pub fn log_regex(software: &Software) -> &'static Regex {
         static PAPER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\[\d{2}:\d{2}:\d{2}\s+([A-Z]+)\]:\s*(.*)$").unwrap());
         static OTHER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\[\d{2}:\d{2}:\d{2}\]\s+\[[^/\]]+/([A-Z]+)\]:\s*(.*)$").unwrap());
+        static FORGE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\[\d{2}:\d{2}:\d{2}\] \[[^/\]]+/([A-Z]+)\] \[[^\]]+\]:\s*(.*)$").unwrap());
 
         match software {
             Self::Paper | Self::Folia => &PAPER,
+            Self::NeoForge => &FORGE,
             _ => &OTHER
         }
     }
