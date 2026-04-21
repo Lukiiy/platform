@@ -20,6 +20,7 @@ anyhow = "1.0.102"
 dirs = "6"
 craftping = { version = "0.7", default-features = false, features = ["async-tokio"] }
 regex = "1.12.3"
+portable-pty = "0.9.0"
 
 [profile.release]
 opt-level = "s"
