@@ -16,6 +16,7 @@ pub enum Software {
     Folia,
     Fabric,
     NeoForge,
+    Forge,
     Custom
 }
 
@@ -26,6 +27,7 @@ impl Software {
         (Self::Folia, "folia", "Folia", "Multithreaded & Plugin support"),
         (Self::Fabric, "fabric", "Fabric", "Mod support"),
         (Self::NeoForge, "neoforge", "NeoForge", "Mod support"),
+        (Self::Forge, "forge", "Forge", "Mod support"),
         (Self::Custom, "custom", "Custom", "Your own jar")
     ];
 
@@ -52,7 +54,7 @@ impl Software {
 
         match software {
             Self::Paper | Self::Folia => &PAPER,
-            Self::NeoForge => &FORGE,
+            Self::Forge | Self::NeoForge => &FORGE,
             _ => &OTHER
         }
     }
@@ -180,10 +182,19 @@ impl SoftwareManager {
                 };
 
                 let xml = self.get_text("https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml").await?;
-                let version = Self::resolve_neoforge_maven(&xml, |v| v.starts_with(&neo_prefix) && !v.ends_with("-beta")).or_else(|| Self::resolve_neoforge_maven(&xml, |v| v.starts_with(&neo_prefix))).ok_or_else(|| anyhow::anyhow!("No NeoForge version for {mc_version}"))?;
+                let version = Self::resolve_maven_version(&xml, |v| v.starts_with(&neo_prefix) && !v.ends_with("-beta")).or_else(|| Self::resolve_maven_version(&xml, |v| v.starts_with(&neo_prefix))).ok_or_else(|| anyhow::anyhow!("No NeoForge version for {mc_version}"))?;
                 let jar_name = format!("neoforge-{version}-installer.jar");
 
                 Ok((format!("https://maven.neoforged.net/releases/net/neoforged/neoforge/{version}/{jar_name}"), jar_name))
+            }
+
+            Software::Forge => {
+                let xml = self.get_text("https://maven.minecraftforge.net/net/minecraftforge/forge/maven-metadata.xml").await?;
+                let prefix = format!("{mc_version}-");
+                let version = Self::resolve_maven_version(&xml, |v| v.starts_with(&prefix)).ok_or_else(|| anyhow::anyhow!("No Forge version for {mc_version}"))?;
+                let jar_name = format!("forge-{version}-installer.jar");
+
+                Ok((format!("https://maven.minecraftforge.net/net/minecraftforge/forge/{version}/{jar_name}"), jar_name))
             }
 
             _ => Err(anyhow::anyhow!("Unknown software!"))
@@ -209,7 +220,7 @@ impl SoftwareManager {
         Ok(())
     }
 
-    fn resolve_neoforge_maven(xml: &str, predicate: impl Fn(&str) -> bool) -> Option<String> {
+    fn resolve_maven_version(xml: &str, predicate: impl Fn(&str) -> bool) -> Option<String> {
         xml.lines().filter_map(|line| {
             let line = line.trim();
 
