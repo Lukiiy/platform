@@ -130,7 +130,7 @@ async fn start_server(index: usize) -> Result<()> {
         }
     };
 
-    if software.is_installer() { manager.use_serverstarter().await?; }
+    if software.is_installer() { server::set_serverstarter(manager.use_serverstarter().await?); }
 
     let servers = config.servers.clone();
 
@@ -141,7 +141,7 @@ async fn start_server(index: usize) -> Result<()> {
         }
     }
 
-    server::run_server(&config.servers[index], &jar_path, &manager)?;
+    server::run_server(&config.servers[index], &jar_path)?;
 
     for group in config.folder_syncs.iter().filter(|it| it.servers.contains(&entry.id)) {
         match foldersync::unsync(group, &servers) {
