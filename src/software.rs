@@ -6,6 +6,8 @@ use std::{path::{Path, PathBuf}, sync::LazyLock};
 
 // todo: snapshots & more modded servers?
 
+pub const SERVERSTARTER_JAR: &str = "server_starter.jar";
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum Software {
@@ -46,7 +48,7 @@ impl Software {
     pub fn log_regex(software: &Software) -> &'static Regex {
         static PAPER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\[\d{2}:\d{2}:\d{2}\s+([A-Z]+)\]:\s*(.*)$").unwrap());
         static OTHER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\[\d{2}:\d{2}:\d{2}\]\s+\[[^/\]]+/([A-Z]+)\]:\s*(.*)$").unwrap());
-        static FORGE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\[\d{2}:\d{2}:\d{2}\] \[[^/\]]+/([A-Z]+)\] \[[^\]]+\]:\s*(.*)$").unwrap());
+        static FORGE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\s*\[\d{2}:\d{2}:\d{2}\]\s+\[[^/\]]+/([A-Z]+)\](?:\s+\[[^\]]+\])?:\s*(.*)$").unwrap());
 
         match software {
             Self::Paper | Self::Folia => &PAPER,
@@ -241,5 +243,13 @@ impl SoftwareManager {
         let url = asset["url"].as_str().ok_or_else(|| anyhow::anyhow!("Missing url"))?.to_string();
 
         Ok((url, name))
+    }
+
+    pub async fn use_serverstarter(&self) -> Result<PathBuf> {
+        let dest = self.software_dir.join(SERVERSTARTER_JAR);
+
+        if !dest.exists() { self.download("https://github.com/NeoForged/ServerStarterJar/releases/latest/download/server.jar", &dest, "ServerStarterJar").await?; }
+
+        Ok(dest)
     }
 }

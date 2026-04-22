@@ -103,15 +103,17 @@ fn open_folder(path: &str) {
 async fn start_server(index: usize) -> Result<()> {
     let mut config = Config::load()?;
     let entry = config.servers[index].clone();
+    let software = entry.software;
+    let manager = SoftwareManager::new(config.software_dir());
 
-    let jar_path = if entry.software == Software::Custom {
+    let jar_path = if software == Software::Custom {
         server::get_custom_jar(&entry.path)?
     } else {
         println!();
 
         ui::info("Verifying jar...");
 
-        match SoftwareManager::new(config.software_dir()).ensure_jar(entry.software, &entry.mc_version).await {
+        match manager.ensure_jar(software, &entry.mc_version).await {
             Ok((path, jar_name)) => {
                 config.servers[index].jar_name = Some(jar_name);
                 config.save()?;
@@ -128,6 +130,8 @@ async fn start_server(index: usize) -> Result<()> {
         }
     };
 
+    if software.is_installer() { manager.use_serverstarter().await?; }
+
     let servers = config.servers.clone();
 
     for group in config.folder_syncs.iter().filter(|it| it.servers.contains(&entry.id)) { // sync folder groups
@@ -137,7 +141,7 @@ async fn start_server(index: usize) -> Result<()> {
         }
     }
 
-    server::run_server(&config.servers[index], &jar_path)?;
+    server::run_server(&config.servers[index], &jar_path, &manager)?;
 
     for group in config.folder_syncs.iter().filter(|it| it.servers.contains(&entry.id)) {
         match foldersync::unsync(group, &servers) {
