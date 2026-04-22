@@ -50,20 +50,22 @@ pub fn run_server(entry: &ServerEntry, jar_path: &PathBuf) -> Result<()> {
 fn stream_process(config: &Config, process: &mut Child, software: &Software) {
     let stdout = process.stdout.take().unwrap();
     let stderr = process.stderr.take().unwrap();
-    let regex = Arc::new(Software::log_regex(software));
+    let regex = Software::log_regex(software).clone();
     let cleaner = config.app.cleaner_log;
 
     let thread_out = thread::spawn(move || {
-        for line in BufReader::new(stdout).lines() {
-            if let Ok(l) = line {
-                if cleaner { println!("{}", format_line(&l, &regex)); } else { println!("{l}"); }
+        for line in BufReader::new(stdout).lines().flatten() {
+            if cleaner {
+                println!("{}", format_line(&line, &regex));
+            } else {
+                println!("{line}");
             }
         }
     });
 
     let thread_err = thread::spawn(move || {
-        for line in BufReader::new(stderr).lines() {
-            if let Ok(l) = line { eprintln!("{}", l.bright_red()); }
+        for line in BufReader::new(stderr).lines().flatten() {
+            eprintln!("{}", line.bright_red());
         }
     });
 
