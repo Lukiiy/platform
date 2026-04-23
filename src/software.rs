@@ -178,23 +178,25 @@ impl SoftwareManager {
                 let neo_prefix = match parts.as_slice() {
                     [minor] => format!("{minor}.0."),
                     [minor, patch] => format!("{minor}.{patch}."),
-                    _ => anyhow::bail!("Unrecognised MC version format: {mc_version}")
+                    _ => anyhow::bail!("Unrecognized version format: {mc_version}")
                 };
 
                 let xml = self.get_text("https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml").await?;
-                let version = Self::resolve_maven_version(&xml, |v| v.starts_with(&neo_prefix) && !v.ends_with("-beta")).or_else(|| Self::resolve_maven_version(&xml, |v| v.starts_with(&neo_prefix))).ok_or_else(|| anyhow::anyhow!("No NeoForge version for {mc_version}"))?;
-                let jar_name = format!("neoforge-{version}-installer.jar");
+                let version = Self::resolve_maven_version(&xml, |v| v.starts_with(&neo_prefix) && !v.ends_with("-beta"))
+                    .or_else(|| Self::resolve_maven_version(&xml, |v| v.starts_with(&neo_prefix)))
+                    .ok_or_else(|| anyhow::anyhow!("No NeoForge version for {mc_version}"))?;
 
-                Ok((format!("https://maven.neoforged.net/releases/net/neoforged/neoforge/{version}/{jar_name}"), jar_name))
+                let name = format!("neoforge-{version}-installer.jar");
+
+                Ok((format!("https://maven.neoforged.net/releases/net/neoforged/neoforge/{version}/{name}"), name))
             }
 
             Software::Forge => {
                 let xml = self.get_text("https://maven.minecraftforge.net/net/minecraftforge/forge/maven-metadata.xml").await?;
-                let prefix = format!("{mc_version}-");
-                let version = Self::resolve_maven_version(&xml, |v| v.starts_with(&prefix)).ok_or_else(|| anyhow::anyhow!("No Forge version for {mc_version}"))?;
-                let jar_name = format!("forge-{version}-installer.jar");
+                let version = Self::resolve_maven_version(&xml, |v| v.starts_with(&format!("{mc_version}-"))).ok_or_else(|| anyhow::anyhow!("No Forge version for {mc_version}"))?;
+                let name = format!("forge-{version}-installer.jar");
 
-                Ok((format!("https://maven.minecraftforge.net/net/minecraftforge/forge/{version}/{jar_name}"), jar_name))
+                Ok((format!("https://maven.minecraftforge.net/net/minecraftforge/forge/{version}/{name}"), name))
             }
 
             _ => Err(anyhow::anyhow!("Unknown software!"))
