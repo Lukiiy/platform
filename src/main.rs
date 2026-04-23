@@ -532,9 +532,9 @@ fn global_settings(config: &mut Config) -> Result<()> {
             }
         );
 
-        let cleaner_log = format!("Cleaner logs: {}", ui::toggleable(config.app.cleaner_log));
+        let fancier_logs = format!("Fancier logs: {}", ui::toggleable(config.app.cleaner_log));
 
-        let select = Select::new().with_prompt("Settings").items(&[java_path, cleaner_log, "Back".into()]).default(selected).interact()?;
+        let select = Select::new().with_prompt("Settings").items(&[java_path, fancier_logs, "Back".into()]).default(selected).interact()?;
 
         selected = select;
 
