@@ -33,7 +33,13 @@ pub fn run_server(entry: &ServerEntry, jar_path: &Path) -> Result<()> {
     let java = entry.java_path.as_deref().unwrap_or(&config.app.java_path);
 
     if entry.software.is_installer() {
-        if !entry.path.join("libraries").exists() {
+        let installed = if cfg!(windows) {
+            entry.path.join("run.bat").exists()
+        } else {
+            entry.path.join("run.sh").exists()
+        };
+
+        if !installed {
             println!("{}", " Installing... ".black().on_bright_yellow().bold());
 
             let status = Command::new(java).arg("-jar").arg(jar_path).arg("--installServer").current_dir(&entry.path)
