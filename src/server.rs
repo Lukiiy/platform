@@ -18,6 +18,9 @@ static TERMINAL_FILTER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\x1B\[[0
 pub fn run_server(entry: &ServerEntry, jar_path: &Path) -> Result<()> {
     let config = Config::load()?;
 
+    const INSTALLER_ERR: &str = "Failed to launch the installer!";
+    const SERVER_ERR: &str = "Failed to start the server... Is it installed? Is Java also installed?";
+
     let eula = entry.path.join("eula.txt");
     if !eula.exists() {
         if !Confirm::new().with_prompt("Accept the Minecraft EULA? (https://aka.ms/MinecraftEULA)").default(false).interact()? {
@@ -42,8 +45,8 @@ pub fn run_server(entry: &ServerEntry, jar_path: &Path) -> Result<()> {
         if !installed {
             println!("{}", " Installing... ".black().on_bright_yellow().bold());
 
-            let status = Command::new(java).arg("-jar").arg(jar_path).arg("--installServer").current_dir(&entry.path)
-                .status().context("Failed to run installer. Is Java installed?")?;
+            let status = Command::new(java).arg("-jar").arg(jar_path).arg("--installServer")
+                .current_dir(&entry.path).status().context(INSTALLER_ERR)?;
 
             if !status.success() {
                 return Err(anyhow::anyhow!("Installer exited with: {}", status));
@@ -56,11 +59,27 @@ pub fn run_server(entry: &ServerEntry, jar_path: &Path) -> Result<()> {
         let args_path = entry.path.join("user_jvm_args.txt");
         std::fs::write(&args_path, format!("{}\n", jvm_args.join("\n")))?;
 
-        let starter = SERVERSTARTER_PATH.get().ok_or_else(|| anyhow::anyhow!("ServerStarter not found!"))?;
+        let mut process = if installed { // modern Forge/NeoForge
+            let starter = SERVERSTARTER_PATH.get().ok_or_else(|| anyhow::anyhow!("ServerStarter not found!"))?;
 
-        let mut process = Command::new(java).arg(format!("@{}", args_path.display())).arg("-jar").arg(starter).arg("--nogui")
-            .current_dir(&entry.path).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped())
-            .spawn().context("Failed to launch server. Did installation succeed?")?;
+            Command::new(java).arg(format!("@{}", args_path.display())).arg("-jar").arg(starter).arg("--nogui")
+                .current_dir(&entry.path).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped())
+                .spawn().context(SERVER_ERR)?
+        } else { // old Forge
+            let server_jar = std::fs::read_dir(&entry.path)?
+                .filter_map(|e| e.ok().map(|e| e.path())).find(|p| {
+                    p.extension().map_or(false, |e| e == "jar") && p.file_name().map(|n| n.to_string_lossy().starts_with("minecraft_server")).unwrap_or(false)
+                }).ok_or_else(|| anyhow::anyhow!(SERVER_ERR))?;
+
+            let mut jvm = vec![format!("-Xms{}M", ram / 2), format!("-Xmx{}M", ram)];
+
+            jvm.extend(entry.extra_jvm_args.iter().cloned());
+            jvm.extend(["-jar".into(), server_jar.to_string_lossy().into_owned(), "--nogui".into()]);
+
+            Command::new(java).args(&jvm).current_dir(&entry.path)
+                .stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped())
+                .spawn().context(SERVER_ERR)?
+        };
 
         let mut child_stdin = process.stdin.take().unwrap();
         let mut shutdown_pipe = [0i32; 2]; // wake poll() so stdin thread exits on shut
@@ -125,7 +144,7 @@ pub fn run_server(entry: &ServerEntry, jar_path: &Path) -> Result<()> {
 
     let mut process = Command::new(java).args(&jvm).current_dir(&entry.path)
         .stdin(Stdio::inherit()).stdout(Stdio::piped()).stderr(Stdio::piped())
-        .spawn().context("Failed to launch Java... Is it installed?")?;
+        .spawn().context(SERVER_ERR)?;
 
     println!("{}", " Starting ".black().on_bright_green().bold());
 
