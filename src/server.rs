@@ -15,15 +15,18 @@ use crate::software::Software;
 pub fn run_server(entry: &ServerEntry, jar_path: &PathBuf) -> Result<()> {
     let config = Config::load()?;
 
-    let eula = entry.path.join("eula.txt");
-    if !eula.exists() {
-        if !Confirm::new().with_prompt("Accept the Minecraft EULA? (https://aka.ms/MinecraftEULA)").default(false).interact()? {
-            ui::warn("EULA not accepted, cancelling.");
+    if entry.software != Software::Custom {
+        let eula = entry.path.join("eula.txt");
 
-            return Ok(());
+        if !eula.exists() {
+            if !Confirm::new().with_prompt("Accept the Minecraft EULA? (https://aka.ms/MinecraftEULA)").default(false).interact()? {
+                ui::warn("EULA not accepted, cancelling.");
+
+                return Ok(());
+            }
+
+            std::fs::write(&eula, "eula=true")?;
         }
-
-        std::fs::write(&eula, "eula=true")?;
     }
 
     let ram = entry.ram_mb;
