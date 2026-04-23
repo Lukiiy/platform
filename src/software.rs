@@ -14,6 +14,8 @@ pub enum Software {
     Folia,
     Fabric,
     NeoForge,
+
+    #[serde(other)]
     Custom
 }
 
