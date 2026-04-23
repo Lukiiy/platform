@@ -92,61 +92,49 @@ impl SoftwareManager {
         Ok(Some((current.map(String::from), latest)))
     }
 
-    pub async fn minecraft_releases(&self, limit: usize) -> Result<Vec<String>> {
-        #[derive(Deserialize)]
-        struct Manifest {
-            versions: Vec<Version>
-        }
-
+    async fn get_mojang_manifest(&self) -> Result<Vec<(String, String, String)>> {
         #[derive(Deserialize)]
         struct Version {
             id: String,
 
             #[serde(rename = "type")]
-            kind: String
+            kind: String,
+
+            url: String
+        }
+
+        #[derive(Deserialize)]
+        struct Manifest {
+            versions: Vec<Version>
         }
 
         let manifest: Manifest = self.get_json("https://launchermeta.mojang.com/mc/game/version_manifest.json").await?;
 
-        Ok(manifest.versions.into_iter().filter(|v| v.kind == "release").take(limit).map(|v| v.id).collect())
+        Ok(manifest.versions.into_iter().map(|v| (v.id, v.kind, v.url)).collect())
+    }
+
+    pub async fn minecraft_releases(&self, limit: usize, snapshots: bool, historical: bool) -> Result<Vec<String>> {
+        Ok(self.get_mojang_manifest().await?.into_iter()
+            .filter(|(_, kind, _)| match kind.as_str() {
+                "release" => true,
+                "snapshot" => snapshots,
+                "old_beta" | "old_alpha" => historical,
+                _  => false
+            }).take(limit).map(|(id, _, _)| id).collect())
     }
 
     async fn resolve(&self, software: Software, mc_version: &str) -> Result<(String, String)> {
         match software {
             Software::Vanilla => {
-                #[derive(Deserialize)]
-                struct Manifest {
-                    versions: Vec<ManifestEntry>
-                }
+                let versions = self.get_mojang_manifest().await?;
 
-                #[derive(Deserialize)]
-                struct ManifestEntry {
-                    id: String,
-                    url: String
-                }
+                let (_, _, meta_url) = versions.iter().find(|(id, _, _)| id == mc_version)
+                    .ok_or_else(|| anyhow::anyhow!("Version {mc_version} not in manifest"))?;
 
-                #[derive(Deserialize)]
-                struct Meta {
-                    downloads: Downloads
-                }
+                let meta: serde_json::Value = self.get_json(meta_url).await?; // holds { downloads: { server: { url } } }
+                let url = meta["downloads"]["server"]["url"].as_str().ok_or_else(|| anyhow::anyhow!("Missing server download for {mc_version}"))?.to_string();
 
-                #[derive(Deserialize)]
-                struct Downloads {
-                    server: Asset
-                }
-
-                #[derive(Deserialize)]
-                struct Asset {
-                    url: String
-                }
-
-                let manifest: Manifest = self.get_json("https://launchermeta.mojang.com/mc/game/version_manifest.json").await?;
-
-                let entry = manifest.versions.iter().find(|v| v.id == mc_version).ok_or_else(|| anyhow::anyhow!("Version {mc_version} not in Mojang manifest"))?;
-                let meta: Meta = self.get_json(&entry.url).await?;
-                let name = format!("minecraft_server.{mc_version}.jar");
-
-                Ok((meta.downloads.server.url, name))
+                Ok((url, format!("minecraft_server.{mc_version}.jar")))
             }
 
             Software::Paper => self.resolve_papermc_dls("paper", mc_version, true).await,

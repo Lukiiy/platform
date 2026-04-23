@@ -565,7 +565,7 @@ async fn select_software(soft_manager: &SoftwareManager) -> Result<(Software, St
     let mc_version = if software.auto_download() {
         ui::info("Fetching Minecraft versions...");
 
-        match soft_manager.minecraft_releases(60).await {
+        match soft_manager.minecraft_releases(usize::MAX, false, false).await {
             Ok(versions) => versions[ui::menu("Minecraft version", &versions, 0)?].clone(),
 
             Err(_) => Input::new().with_prompt("Minecraft version").interact_text()?
