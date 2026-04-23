@@ -43,7 +43,7 @@ impl Software {
 
     pub fn auto_download(&self) -> bool { !matches!(self, Self::Custom) }
 
-    pub fn is_installer(&self) -> bool { matches!(self, Self::NeoForge) }
+    pub fn is_installer(&self) -> bool { matches!(self, Self::Forge | Self::NeoForge) }
 
     pub fn menu_labels() -> Vec<String> { Self::EVERYTHING.iter().map(|(_, _, name, desc)| format!("{name} - {desc}")).collect() }
 
