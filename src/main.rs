@@ -141,7 +141,8 @@ async fn start_server(index: usize) -> Result<()> {
         }
     }
 
-    server::run_server(&config.servers[index], &jar_path)?;
+    server::run_server(&mut config.servers[index], &jar_path)?;
+    config.save()?;
 
     for group in config.folder_syncs.iter().filter(|it| it.servers.contains(&entry.id)) {
         match foldersync::unsync(group, &servers) {
@@ -228,6 +229,7 @@ async fn software_menu(config: &mut Config, index: usize) -> Result<()> {
                             config.servers[index].software = target_software;
                             config.servers[index].mc_version = target_version;
                             config.servers[index].jar_name = Some(name);
+                            config.servers[index].installed = false;
 
                             config.save()?;
 
@@ -387,7 +389,8 @@ async fn add_server_menu(config: &mut Config) -> Result<()> {
         ram_mb,
         extra_jvm_args: vec![],
         jar_name: None,
-        java_path: None
+        java_path: None,
+        installed: false,
     });
 
     config.save()?;

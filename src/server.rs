@@ -15,7 +15,7 @@ use crate::software::Software;
 static SERVERSTARTER_PATH: OnceLock<PathBuf> = OnceLock::new();
 static TERMINAL_FILTER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\x1B\[[0-?]*[ -/]*[@-~]").unwrap());
 
-pub fn run_server(entry: &ServerEntry, jar_path: &Path) -> Result<()> {
+pub fn run_server(entry: &mut ServerEntry, jar_path: &Path) -> Result<()> {
     let config = Config::load()?;
 
     const INSTALLER_ERR: &str = "Failed to launch the installer!";
@@ -36,13 +36,7 @@ pub fn run_server(entry: &ServerEntry, jar_path: &Path) -> Result<()> {
     let java = entry.java_path.as_deref().unwrap_or(&config.app.java_path);
 
     if entry.software.is_installer() {
-        let installed = if cfg!(windows) {
-            entry.path.join("run.bat").exists()
-        } else {
-            entry.path.join("run.sh").exists()
-        };
-
-        if !installed {
+        if !entry.installed {
             println!("{}", " Installing... ".black().on_bright_yellow().bold());
 
             let status = Command::new(java).arg("-jar").arg(jar_path).arg("--installServer")
@@ -51,6 +45,8 @@ pub fn run_server(entry: &ServerEntry, jar_path: &Path) -> Result<()> {
             if !status.success() {
                 return Err(anyhow::anyhow!("Installer exited with: {}", status));
             }
+
+            entry.installed = true;
         }
 
         let mut jvm_args = vec![format!("-Xms{}M", ram / 2), format!("-Xmx{}M", ram)];
@@ -59,7 +55,13 @@ pub fn run_server(entry: &ServerEntry, jar_path: &Path) -> Result<()> {
         let args_path = entry.path.join("user_jvm_args.txt");
         std::fs::write(&args_path, format!("{}\n", jvm_args.join("\n")))?;
 
-        let mut process = if installed { // modern Forge/NeoForge
+        let hasScript = if cfg!(windows) {
+            entry.path.join("run.bat").exists()
+        } else {
+            entry.path.join("run.sh").exists()
+        };
+
+        let mut process = if hasScript { // modern Forge/NeoForge
             let starter = SERVERSTARTER_PATH.get().ok_or_else(|| anyhow::anyhow!("ServerStarter not found!"))?;
 
             Command::new(java).arg(format!("@{}", args_path.display())).arg("-jar").arg(starter).arg("--nogui")
@@ -67,9 +69,7 @@ pub fn run_server(entry: &ServerEntry, jar_path: &Path) -> Result<()> {
                 .spawn().context(SERVER_ERR)?
         } else { // old Forge
             let server_jar = std::fs::read_dir(&entry.path)?
-                .filter_map(|e| e.ok().map(|e| e.path())).find(|p| {
-                    p.extension().map_or(false, |e| e == "jar") && p.file_name().map(|n| n.to_string_lossy().starts_with("minecraft_server")).unwrap_or(false)
-                }).ok_or_else(|| anyhow::anyhow!(SERVER_ERR))?;
+                .filter_map(|e| e.ok().map(|e| e.path())).find(|p| { p.extension().map_or(false, |e| e == "jar") && p.file_name().map(|n| n.to_string_lossy().contains("server")).unwrap_or(false) }).ok_or_else(|| anyhow::anyhow!(SERVER_ERR))?;
 
             let mut jvm = vec![format!("-Xms{}M", ram / 2), format!("-Xmx{}M", ram)];
 
