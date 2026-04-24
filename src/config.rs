@@ -1,4 +1,5 @@
 use anyhow::Result;
+use dirs::config_dir;
 use serde::{Deserialize, Serialize};
 use std::{path::PathBuf};
 
@@ -63,7 +64,7 @@ impl Default for Config {
 
 impl Config {
     pub fn config_path() -> PathBuf {
-        dirs::config_dir().unwrap_or_else(|| PathBuf::from(".")).join("platform").join("config.toml")
+        Self::config_dir().join("config.toml")
     }
 
     pub fn load() -> Result<Self> {
@@ -103,5 +104,9 @@ impl Config {
 
     pub fn group_dir(&self, group: &FolderLinks) -> PathBuf {
         self.synced_folders_dir().join(&group.name)
+    }
+
+    pub fn config_dir() -> PathBuf {
+        dirs::config_dir().unwrap_or_else(|| PathBuf::from(".")).join("platform")
     }
 }

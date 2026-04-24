@@ -534,7 +534,7 @@ fn global_settings(config: &mut Config) -> Result<()> {
 
         let fancier_logs = format!("Fancier logs: {}", ui::toggleable(config.app.cleaner_log));
 
-        let select = Select::new().with_prompt("Settings").items(&[java_path, fancier_logs, "Back".into()]).default(selected).interact()?;
+        let select = Select::new().with_prompt("Settings").items(&[java_path, fancier_logs, "Open main folder".into(), "Open config folder".into(), "Back".into()]).default(selected).interact()?;
 
         selected = select;
 
@@ -550,6 +550,14 @@ fn global_settings(config: &mut Config) -> Result<()> {
             1 => {
                 config.app.cleaner_log = !config.app.cleaner_log;
                 config.save()?;
+            }
+
+            2 => {
+                open_folder(&config.app.data_dir.to_string_lossy());
+            }
+
+            3 => {
+                open_folder(&Config::config_dir().to_string_lossy());
             }
 
             _ => return Ok(())
