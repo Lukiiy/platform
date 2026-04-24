@@ -49,7 +49,7 @@ async fn main_menu(config: &mut Config) -> Result<bool> {
     items.push("Quit".into());
 
     match ui::menu("Select a server or action", &items, 0)? {
-        i if i < act => server_menu(config, i).await?,
+        i if i < act => server_menu(config, i).await?, // server entries!
         i if i == act => add_server_menu(config).await?,
         i if i == act + 1 => folder_sync_menu(config)?,
         i if i == act + 2 => global_settings(config)?,
@@ -435,7 +435,7 @@ fn link_action_menu(config: &mut Config, index: usize) -> Result<()> {
         let subscribed: Vec<String> = config.servers.iter().filter(|it| link.servers.contains(&it.id)).map(|it| format!("    ⯁ {}", it.name)).collect();
 
         if subscribed.is_empty() {
-            println!("    (no servers)");
+            println!("    None");
         } else {
             for s in &subscribed {
                 println!("{s}");
