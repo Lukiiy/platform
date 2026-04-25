@@ -1,5 +1,4 @@
 use anyhow::Result;
-use dirs::config_dir;
 use serde::{Deserialize, Serialize};
 use std::{path::PathBuf};
 
