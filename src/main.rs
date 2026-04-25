@@ -326,12 +326,15 @@ fn server_settings(config: &mut Config, index: usize) -> Result<()> {
 
 fn remove_server(config: &mut Config, index: usize) -> Result<bool> {
     let name = config.servers[index].name.clone();
+    let warn = if config.app.remove_deletion { "This action cannot be undone!" } else { "Files won't be deleted." };
 
-    if Confirm::new().with_prompt(format!("Remove \"{name}\"? (This action cannot be undone!)")).default(false).interact()? {
+    if Confirm::new().with_prompt(format!("Remove \"{name}\"? {warn}")).default(false).interact()? {
         config.servers.remove(index);
         config.save()?;
 
-        std::fs::remove_dir_all(&config.servers[index].path)?;
+        if config.app.remove_deletion {
+            std::fs::remove_dir_all(&config.servers[index].path)?;
+        }
 
         ui::ok(&format!("\"{name}\" removed."));
         ui::pause("Press Enter...");
@@ -535,8 +538,9 @@ fn global_settings(config: &mut Config) -> Result<()> {
         );
 
         let fancier_logs = format!("Fancier logs: {}", ui::toggleable(config.app.cleaner_log));
+        let remove_deletion = format!("Remove deletion: {}", ui::toggleable(config.app.remove_deletion));
 
-        let select = Select::new().with_prompt("Settings").items(&[java_path, fancier_logs, "Open main folder".into(), "Open config folder".into(), "Back".into()]).default(selected).interact()?;
+        let select = Select::new().with_prompt("Settings").items(&[java_path, fancier_logs, remove_deletion, "Open main folder".into(), "Open config folder".into(), "Back".into()]).default(selected).interact()?;
 
         selected = select;
 
@@ -555,10 +559,15 @@ fn global_settings(config: &mut Config) -> Result<()> {
             }
 
             2 => {
-                open_folder(&config.app.data_dir.to_string_lossy());
+                config.app.remove_deletion = !config.app.remove_deletion;
+                config.save()?;
             }
 
             3 => {
+                open_folder(&config.app.data_dir.to_string_lossy());
+            }
+
+            4 => {
                 open_folder(&Config::config_dir().to_string_lossy());
             }
 

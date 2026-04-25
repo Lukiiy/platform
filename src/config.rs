@@ -24,7 +24,10 @@ pub struct Settings {
     pub java_path: String,
 
     #[serde(default)]
-    pub cleaner_log: bool
+    pub cleaner_log: bool,
+
+    #[serde(default)]
+    pub remove_deletion: bool
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -52,7 +55,8 @@ impl Default for Config {
             app: Settings {
                 data_dir,
                 java_path,
-                cleaner_log: false
+                cleaner_log: false,
+                remove_deletion: true
             },
 
             servers: vec![],
