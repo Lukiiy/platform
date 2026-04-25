@@ -327,9 +327,11 @@ fn server_settings(config: &mut Config, index: usize) -> Result<()> {
 fn remove_server(config: &mut Config, index: usize) -> Result<bool> {
     let name = config.servers[index].name.clone();
 
-    if Confirm::new().with_prompt(format!("Remove \"{name}\"? (files won't be deleted)")).default(false).interact()? {
+    if Confirm::new().with_prompt(format!("Remove \"{name}\"? (This action cannot be undone!)")).default(false).interact()? {
         config.servers.remove(index);
         config.save()?;
+
+        std::fs::remove_dir_all(&config.servers[index].path)?;
 
         ui::ok(&format!("\"{name}\" removed."));
         ui::pause("Press Enter...");
