@@ -18,7 +18,6 @@ dialoguer = "0.12"
 colored = "3.1.1"
 anyhow = "1.0.102"
 dirs = "6"
-craftping = { version = "0.7", default-features = false, features = ["async-tokio"] }
 regex = "1.12.3"
 libc = "0.2.185"
 
