@@ -6,6 +6,8 @@ use std::{path::{Path, PathBuf}, sync::LazyLock};
 
 // todo: snapshots & more modded servers?
 
+pub const SERVERSTARTER_JAR: &str = "server_starter.jar";
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum Software {
@@ -14,6 +16,7 @@ pub enum Software {
     Folia,
     Fabric,
     NeoForge,
+    Forge,
 
     #[serde(other)]
     Custom
@@ -26,6 +29,7 @@ impl Software {
         (Self::Folia, "folia", "Folia", "Multithreaded & Plugin support"),
         (Self::Fabric, "fabric", "Fabric", "Mod support"),
         (Self::NeoForge, "neoforge", "NeoForge", "Mod support"),
+        (Self::Forge, "forge", "Forge", "Mod support"),
         (Self::Custom, "custom", "Custom", "Your own jar")
     ];
 
@@ -41,16 +45,18 @@ impl Software {
 
     pub fn auto_download(&self) -> bool { !matches!(self, Self::Custom) }
 
-    pub fn is_installer(&self) -> bool { matches!(self, Self::NeoForge) }
+    pub fn is_installer(&self) -> bool { matches!(self, Self::Forge | Self::NeoForge) }
 
     pub fn menu_labels() -> Vec<String> { Self::EVERYTHING.iter().map(|(_, _, name, desc)| format!("{name} - {desc}")).collect() }
 
     pub fn log_regex(software: &Software) -> &'static Regex {
         static PAPER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\[\d{2}:\d{2}:\d{2}\s+([A-Z]+)\]:\s*(.*)$").unwrap());
         static OTHER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\[\d{2}:\d{2}:\d{2}\]\s+\[[^/\]]+/([A-Z]+)\]:\s*(.*)$").unwrap());
+        static FORGE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\s*\[\d{2}:\d{2}:\d{2}\]\s+\[[^/\]]+/([A-Z]+)\](?:\s+\[[^\]]+\])?:\s*(.*)$").unwrap());
 
         match software {
             Self::Paper | Self::Folia => &PAPER,
+            Self::Forge | Self::NeoForge => &FORGE,
             _ => &OTHER
         }
     }
@@ -162,14 +168,25 @@ impl SoftwareManager {
                 let neo_prefix = match parts.as_slice() {
                     [minor] => format!("{minor}.0."),
                     [minor, patch] => format!("{minor}.{patch}."),
-                    _ => anyhow::bail!("Unrecognised MC version format: {mc_version}")
+                    _ => anyhow::bail!("Unrecognized version format: {mc_version}")
                 };
 
                 let xml = self.get_text("https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml").await?;
-                let version = Self::resolve_neoforge_maven(&xml, |v| v.starts_with(&neo_prefix) && !v.ends_with("-beta")).or_else(|| Self::resolve_neoforge_maven(&xml, |v| v.starts_with(&neo_prefix))).ok_or_else(|| anyhow::anyhow!("No NeoForge version for {mc_version}"))?;
-                let jar_name = format!("neoforge-{version}-installer.jar");
+                let version = Self::resolve_maven_version(&xml, |v| v.starts_with(&neo_prefix) && !v.ends_with("-beta"))
+                    .or_else(|| Self::resolve_maven_version(&xml, |v| v.starts_with(&neo_prefix)))
+                    .ok_or_else(|| anyhow::anyhow!("No NeoForge version for {mc_version}"))?;
 
-                Ok((format!("https://maven.neoforged.net/releases/net/neoforged/neoforge/{version}/{jar_name}"), jar_name))
+                let name = format!("neoforge-{version}-installer.jar");
+
+                Ok((format!("https://maven.neoforged.net/releases/net/neoforged/neoforge/{version}/{name}"), name))
+            }
+
+            Software::Forge => {
+                let xml = self.get_text("https://maven.minecraftforge.net/net/minecraftforge/forge/maven-metadata.xml").await?;
+                let version = Self::resolve_maven_version(&xml, |v| v.starts_with(&format!("{mc_version}-"))).ok_or_else(|| anyhow::anyhow!("No Forge version for {mc_version}"))?;
+                let name = format!("forge-{version}-installer.jar");
+
+                Ok((format!("https://maven.minecraftforge.net/net/minecraftforge/forge/{version}/{name}"), name))
             }
 
             _ => Err(anyhow::anyhow!("Unknown software!"))
@@ -195,7 +212,7 @@ impl SoftwareManager {
         Ok(())
     }
 
-    fn resolve_neoforge_maven(xml: &str, predicate: impl Fn(&str) -> bool) -> Option<String> {
+    fn resolve_maven_version(xml: &str, predicate: impl Fn(&str) -> bool) -> Option<String> {
         xml.lines().filter_map(|line| {
             let line = line.trim();
 
@@ -229,5 +246,13 @@ impl SoftwareManager {
         let url = asset["url"].as_str().ok_or_else(|| anyhow::anyhow!("Missing url"))?.to_string();
 
         Ok((url, name))
+    }
+
+    pub async fn use_serverstarter(&self) -> Result<PathBuf> {
+        let dest = self.software_dir.join(SERVERSTARTER_JAR);
+
+        if !dest.exists() { self.download("https://github.com/NeoForged/ServerStarterJar/releases/latest/download/server.jar", &dest, "ServerStarterJar").await?; }
+
+        Ok(dest)
     }
 }

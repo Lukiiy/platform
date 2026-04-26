@@ -43,7 +43,10 @@ pub struct ServerEntry {
     pub extra_jvm_args: Vec<String>,
 
     pub jar_name: Option<String>,
-    pub java_path: Option<String>
+    pub java_path: Option<String>,
+
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub installed: bool
 }
 
 impl Default for Config {
