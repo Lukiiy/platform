@@ -39,6 +39,7 @@ impl Software {
 
     pub fn as_str(&self) -> &'static str { self.entry().2 }
 
+    #[allow(unused)]
     pub fn from_str(string: &str) -> Self {
         Self::EVERYTHING.iter().find(|(_, id, ..)| *id == string).map_or(Self::Custom, |(v, ..)| *v)
     }
