@@ -13,6 +13,8 @@ use foldersync::{FolderLinks, LinkMode};
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    if !std::io::IsTerminal::is_terminal(&std::io::stdin()) { std::process::exit(1); }
+
     let mut config = Config::load()?;
 
     std::fs::create_dir_all(config.software_dir())?;
