@@ -419,19 +419,15 @@ fn folder_sync_menu(config: &mut Config) -> Result<()> {
             format!("• {}", l.name.bright_green().bold())
         }).collect();
 
-        let idx_new = items.len();
+        let act = items.len();
 
         items.push("Create a new one".into());
         items.push("Back".into());
 
-        let sel = ui::menu("Groups", &items, 0)?;
-
-        if sel < idx_new {
-            link_action_menu(config, sel)?;
-        } else if sel == idx_new {
-            create_link_menu(config)?;
-        } else {
-            return Ok(());
+        match ui::menu("Groups", &items, 0)? {
+            i if i < act => link_action_menu(config, i)?, // entries!
+            i if i == act => create_link_menu(config)?,
+            _ => return Ok(())
         }
     }
 }
@@ -440,7 +436,7 @@ fn link_action_menu(config: &mut Config, index: usize) -> Result<()> {
     loop {
         ui::banner();
 
-        let link = &config.folder_syncs[index];
+        let link = config.folder_syncs[index].clone();
 
         println!("  {} {}", "Group:".dimmed(), link.name.bold().bright_magenta());
         println!("  {} {}", "Mode:".dimmed(), link.mode);
@@ -475,9 +471,15 @@ fn link_action_menu(config: &mut Config, index: usize) -> Result<()> {
             }
 
             2 => {
-                if Confirm::new().with_prompt("Delete group? (folder & files will remain)").default(false).interact()? {
+                let warn = if config.app.remove_deletion { "This action cannot be undone!" } else { "Files won't be deleted." };
+
+                if Confirm::new().with_prompt(format!("Delete group? {warn}")).default(false).interact()? {
                     config.folder_syncs.remove(index);
                     config.save()?;
+
+                    if config.app.remove_deletion {
+                        std::fs::remove_dir_all(&config.group_dir(&link))?;
+                    }
 
                     ui::ok("Deleted.");
                     ui::pause("Press Enter...");
