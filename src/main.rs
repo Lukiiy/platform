@@ -339,12 +339,12 @@ fn remove_server(config: &mut Config, index: usize) -> Result<bool> {
     let warn = if config.app.remove_deletion { "This action cannot be undone!" } else { "Files won't be deleted." };
 
     if Confirm::new().with_prompt(format!("Remove \"{name}\"? {warn}")).default(false).interact()? {
-        config.servers.remove(index);
-        config.save()?;
-
         if config.app.remove_deletion {
             std::fs::remove_dir_all(&config.servers[index].path)?;
         }
+
+        config.servers.remove(index);
+        config.save()?;
 
         ui::ok(&format!("\"{name}\" removed."));
         ui::pause("Press Enter...");
@@ -485,12 +485,12 @@ fn link_action_menu(config: &mut Config, index: usize) -> Result<()> {
                 let warn = if config.app.remove_deletion { "This action cannot be undone!" } else { "Files won't be deleted." };
 
                 if Confirm::new().with_prompt(format!("Delete group? {warn}")).default(false).interact()? {
-                    config.folder_syncs.remove(index);
-                    config.save()?;
-
                     if config.app.remove_deletion {
                         std::fs::remove_dir_all(&config.group_dir(&link))?;
                     }
+
+                    config.folder_syncs.remove(index);
+                    config.save()?;
 
                     ui::ok("Deleted.");
                     ui::pause("Press Enter...");
