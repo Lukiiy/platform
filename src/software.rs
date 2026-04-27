@@ -4,6 +4,8 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::{path::{Path, PathBuf}, sync::LazyLock};
 
+use crate::Config;
+
 // todo: snapshots & more modded servers?
 
 pub const SERVERSTARTER_JAR: &str = "server_starter.jar";
@@ -70,9 +72,11 @@ pub struct SoftwareManager {
 }
 
 impl SoftwareManager {
-    pub fn new(software_dir: PathBuf) -> Self {
+    pub fn new() -> Self {
+        let config = Config::load().unwrap_or_default();
+
         Self {
-            software_dir,
+            software_dir: config.software_dir(),
             client: Client::builder().build().unwrap()
         }
     }

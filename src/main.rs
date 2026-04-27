@@ -106,7 +106,7 @@ async fn start_server(index: usize) -> Result<()> {
     let mut config = Config::load()?;
     let entry = config.servers[index].clone();
     let software = entry.software;
-    let manager = SoftwareManager::new(config.software_dir());
+    let manager = SoftwareManager::new();
 
     let jar_path = if software == Software::Custom {
         server::get_custom_jar(&entry.path)?
@@ -159,7 +159,7 @@ async fn start_server(index: usize) -> Result<()> {
 }
 
 async fn software_menu(config: &mut Config, index: usize) -> Result<()> {
-    let soft_manager = SoftwareManager::new(config.software_dir());
+    let soft_manager = SoftwareManager::new();
 
     loop {
         ui::banner();
@@ -219,7 +219,7 @@ async fn software_menu(config: &mut Config, index: usize) -> Result<()> {
             }
 
             1 => { // OH MY AAAAAAAAAAAAAAAAAAAAAAAA
-                let soft_manager = SoftwareManager::new(config.software_dir());
+                let soft_manager = SoftwareManager::new();
                 let (target_software, target_version) = select_software(&soft_manager).await?;
 
                 if target_software != entry.software { ui::warn("This will change software! May require some reconfiguration."); }
@@ -363,7 +363,7 @@ async fn add_server_menu(config: &mut Config) -> Result<()> {
     if action == 2 { return Ok(()); }
     let is_new = action == 0;
 
-    let manager = SoftwareManager::new(config.software_dir());
+    let manager = SoftwareManager::new();
     let name: String = Input::new().with_prompt("Server name").interact_text()?;
     let id = slugify(&name);
 
