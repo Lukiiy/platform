@@ -110,6 +110,8 @@ async fn start_server(index: usize) -> Result<()> {
 
     let jar_path = if software == Software::Custom {
         server::get_custom_jar(&entry.path)?
+    } else if let Some(ref jar_name) = entry.jar_name {
+        manager.software_dir.join(software.as_str().to_lowercase()).join(jar_name)
     } else {
         println!();
 
@@ -361,10 +363,11 @@ async fn add_server_menu(config: &mut Config) -> Result<()> {
     if action == 2 { return Ok(()); }
     let is_new = action == 0;
 
+    let manager = SoftwareManager::new(config.software_dir());
     let name: String = Input::new().with_prompt("Server name").interact_text()?;
     let id = slugify(&name);
 
-    let (software, mc_version) = select_software(&SoftwareManager::new(config.software_dir())).await?;
+    let (software, mc_version) = select_software(&manager).await?;
     let ram_mb: u32 = 2048;
 
     let server_path = if is_new {
@@ -387,6 +390,14 @@ async fn add_server_menu(config: &mut Config) -> Result<()> {
         p
     };
 
+    let jar_name = if software == Software::Custom {
+        None
+    } else {
+        let (_, name) = manager.ensure_jar(software, &mc_version).await?;
+
+        Some(name)
+    };
+
     config.servers.push(ServerEntry {
         id,
         name: name.clone(),
@@ -395,7 +406,7 @@ async fn add_server_menu(config: &mut Config) -> Result<()> {
         mc_version,
         ram_mb,
         extra_jvm_args: vec![],
-        jar_name: None,
+        jar_name,
         java_path: None,
         installed: false,
     });
