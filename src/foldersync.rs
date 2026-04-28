@@ -43,7 +43,7 @@ impl std::fmt::Display for SyncReport {
 }
 
 pub fn sync(group: &FolderLinks, servers: &[ServerEntry]) -> Result<SyncReport> {
-    let source = Config::load()?.group_dir(group);
+    let source = Config::load()?.foldersync_dir(group);
     let mut report = SyncReport::default();
 
     std::fs::create_dir_all(&source)?;
@@ -62,7 +62,7 @@ pub fn sync(group: &FolderLinks, servers: &[ServerEntry]) -> Result<SyncReport> 
 }
 
 pub fn unsync(group: &FolderLinks, servers: &[ServerEntry]) -> Result<u32> {
-    let source = Config::load()?.group_dir(group);
+    let source = Config::load()?.foldersync_dir(group);
     let mut removed = 0u32;
 
     for server in servers.iter().filter(|s| group.servers.contains(&s.id)) {

@@ -69,6 +69,7 @@ impl Default for Config {
 }
 
 impl Config {
+    /// Returns the path to the config file.
     pub fn config_path() -> PathBuf {
         Self::config_dir().join("config.toml")
     }
@@ -96,22 +97,27 @@ impl Config {
         Ok(())
     }
 
+    /// Returns the software directory.
     pub fn software_dir(&self) -> PathBuf {
         self.app.data_dir.join("software")
     }
 
+    /// Returns the servers directory.
     pub fn servers_dir(&self) -> PathBuf {
         self.app.data_dir.join("servers")
     }
 
+    /// Returns the synced folders directory.
     pub fn synced_folders_dir(&self) -> PathBuf {
         self.app.data_dir.join("syncedFolders")
     }
 
-    pub fn group_dir(&self, group: &FolderLinks) -> PathBuf {
+    /// Returns the directory for a synced folder group.
+    pub fn foldersync_dir(&self, group: &FolderLinks) -> PathBuf {
         self.synced_folders_dir().join(&group.name)
     }
 
+    /// Returns the config directory.
     pub fn config_dir() -> PathBuf {
         dirs::config_dir().unwrap_or_else(|| PathBuf::from(".")).join("platform")
     }

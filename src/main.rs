@@ -466,7 +466,7 @@ fn link_action_menu(config: &mut Config, index: usize) -> Result<()> {
         println!();
 
         match ui::menu("Actions", &["Open group folder", "Edit toggled servers", "Delete group", "Back"], 0)? {
-            0 => open_folder(&config.group_dir(&config.folder_syncs[index]).to_string_lossy().into_owned()),
+            0 => open_folder(&config.foldersync_dir(&config.folder_syncs[index]).to_string_lossy().into_owned()),
 
             1 => {
                 let labels: Vec<String> = config.servers.iter().map(|it| it.name.clone()).collect();
@@ -486,7 +486,7 @@ fn link_action_menu(config: &mut Config, index: usize) -> Result<()> {
 
                 if Confirm::new().with_prompt(format!("Delete group? {warn}")).default(false).interact()? {
                     if config.app.remove_deletion {
-                        std::fs::remove_dir_all(&config.group_dir(&link))?;
+                        std::fs::remove_dir_all(&config.foldersync_dir(&link))?;
                     }
 
                     config.folder_syncs.remove(index);
@@ -525,7 +525,7 @@ fn create_link_menu(config: &mut Config) -> Result<()> {
         mode,
     };
 
-    let group_dir = config.group_dir(&link);
+    let group_dir = config.foldersync_dir(&link);
 
     std::fs::create_dir_all(&group_dir)?;
     ui::ok(&format!("Group folder created: {}", group_dir.display()));
