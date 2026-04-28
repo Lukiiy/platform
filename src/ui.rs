@@ -50,18 +50,22 @@ pub fn pause(prompt: impl Display) {
     let _ = std::io::stdin().read_line(&mut buf);
 }
 
-/// Orders a dialoguer Select menu and returns the selected index.
+/// Orders a dialoguer Select menu.
 /// prompt: Message to display;
 /// items: Items in the menu (must implement Display);
 /// default: Default index to select
+///
+/// Returns the selected index.
 pub fn menu<T>(prompt: impl Into<String>, items: &[T], default: usize) -> Result<usize> where T: Display {
     if items.is_empty() { anyhow::bail!("This menu has no items!"); }
 
     Ok(Select::new().with_prompt(prompt.into()).items(items).default(default.min(items.len().saturating_sub(1))).interact()?)
 }
 
-/// Prints a pretty "toggleable" banner.
+/// Get a pretty "toggleable" banner.
 /// bool: Whether the banner shows ON or OFF
+///
+/// Returns the colored banner string.
 pub fn toggleable(bool: bool) -> ColoredString {
     if bool {
         " ON ".black().on_bright_green().into()
