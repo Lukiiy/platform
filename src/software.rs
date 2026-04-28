@@ -6,8 +6,6 @@ use std::{path::{Path, PathBuf}, sync::LazyLock};
 
 use crate::Config;
 
-// todo: snapshots & more modded servers?
-
 pub const SERVERSTARTER_JAR: &str = "server_starter.jar";
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
