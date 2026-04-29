@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use regex::Regex;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use std::{path::{Path, PathBuf}, sync::LazyLock};
+use std::{path::{Path, PathBuf}, sync::LazyLock, fs};
 
 use crate::Config;
 
@@ -84,7 +84,7 @@ impl SoftwareManager {
 
         let dest = self.software_dir.join(software.as_str().to_lowercase()).join(&jar_name);
         if !dest.exists() {
-            std::fs::create_dir_all(dest.parent().unwrap())?;
+            fs::create_dir_all(dest.parent().unwrap())?;
 
             self.download(&url, &dest, &jar_name).await?;
         }
@@ -209,7 +209,7 @@ impl SoftwareManager {
 
         let bytes = self.client.get(url).send().await.with_context(|| format!("GET {url}"))?.bytes().await?;
 
-        std::fs::write(dest, &bytes)?;
+        fs::write(dest, &bytes)?;
         println!("Downloaded {label}");
 
         Ok(())
