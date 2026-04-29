@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::{fmt, path::Path};
 
 use crate::config::{ServerEntry, Config};
+use crate::file_utils;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FolderLinks {
@@ -99,7 +100,7 @@ fn unsync_dir(group_dir: &Path, server_dir: &Path, group_source: &Path, removed:
 
         if entry.path().is_dir() && target.is_dir() && !target.is_symlink() {
             unsync_dir(&entry.path(), &target, group_source, removed)?;
-        } else if is_managed_symlink(&target, group_source) {
+        } else if file_utils::is_managed_symlink(&target, group_source) {
             std::fs::remove_file(&target)?;
 
             *removed += 1;
@@ -123,7 +124,7 @@ fn sync_entry(source: &Path, target: &Path, group_source: &Path, mode: &LinkMode
         return Ok(());
     }
 
-    if (target.exists() || target.is_symlink()) && !is_managed_symlink(target, group_source) {
+    if (target.exists() || target.is_symlink()) && !file_utils::is_managed_symlink(target, group_source) {
         report.overridden += 1;
 
         return Ok(());
@@ -132,8 +133,8 @@ fn sync_entry(source: &Path, target: &Path, group_source: &Path, mode: &LinkMode
     if target.is_symlink() { std::fs::remove_file(target)?; }
 
     let result = match mode {
-        LinkMode::Symlink => create_symlink(source, target).map_err(anyhow::Error::from),
-        LinkMode::Copy => copy(source, target)
+        LinkMode::Symlink => file_utils::create_symlink(source, target).map_err(anyhow::Error::from),
+        LinkMode::Copy => file_utils::copy(source, target)
     };
 
     match result {
@@ -142,51 +143,4 @@ fn sync_entry(source: &Path, target: &Path, group_source: &Path, mode: &LinkMode
     }
 
     Ok(())
-}
-
-/// Returns whether the given path is a managed symlink.
-fn is_managed_symlink(path: &Path, group_src: &Path) -> bool {
-    path.is_symlink() && std::fs::read_link(path).map(|t| t.starts_with(group_src)).unwrap_or(false)
-}
-
-/// Copies the contents of a folder/file to a dest.
-///
-/// target: Path to target;
-/// dest: Path to end folder.
-///
-/// Returns an error if the copy fails.
-fn copy(target: &Path, dest: &Path) -> Result<()> {
-    if target.is_dir() {
-        std::fs::create_dir_all(dest)?;
-
-        for thing in std::fs::read_dir(target)? {
-            let entry = thing?;
-
-            copy(&entry.path(), &dest.join(entry.file_name()))?;
-        }
-    } else { std::fs::copy(target, dest)?; }
-
-    Ok(())
-}
-
-/// Creates a symlink from one folder to another!
-///
-/// source: Path to the source;
-/// dest: Path to the end folder.
-#[cfg(unix)]
-fn create_symlink(source: &Path, dest: &Path) -> std::io::Result<()> {
-    std::os::unix::fs::symlink(source, dest)
-}
-
-/// Creates a symlink from one folder to another!
-///
-/// source: Path to the source;
-/// dest: Path to the end folder.
-#[cfg(windows)]
-fn create_symlink(source: &Path, dest: &Path) -> std::io::Result<()> {
-    if source.is_dir() {
-        std::os::windows::fs::symlink_dir(source, dest)
-    } else {
-        std::os::windows::fs::symlink_file(source, dest)
-    }
 }

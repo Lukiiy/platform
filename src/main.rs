@@ -3,6 +3,7 @@ mod foldersync;
 mod server;
 mod software;
 mod ui;
+mod file_utils;
 
 use anyhow::Result;
 use colored::Colorize;
@@ -10,6 +11,7 @@ use config::{Config, ServerEntry};
 use dialoguer::{Select, Confirm, Input};
 use software::{Software, SoftwareManager};
 use foldersync::{FolderLinks, LinkMode};
+use file_utils::open_folder;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -84,21 +86,6 @@ async fn server_menu(config: &mut Config, index: usize) -> Result<()> {
             }
             _ => return Ok(())
         }
-    }
-}
-
-fn open_folder(path: &str) {
-    #[cfg(target_os = "windows")]
-    let cmd = ("explorer", path);
-
-    #[cfg(target_os = "macos")]
-    let cmd = ("open", path);
-
-    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
-    let cmd = ("xdg-open", path);
-
-    if std::process::Command::new(cmd.0).arg(cmd.1).spawn().is_err() {
-        ui::warn(&format!("Could not open: {path}"));
     }
 }
 
