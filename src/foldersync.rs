@@ -16,7 +16,9 @@ pub struct FolderLinks {
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum LinkMode {
-    #[default] Symlink,
+    #[default]
+    Symlink,
+
     Copy
 }
 
@@ -29,6 +31,7 @@ impl fmt::Display for LinkMode {
     }
 }
 
+/// Stores the results of a foldersync sync/unsync call.
 #[derive(Default, Debug)]
 pub struct SyncReport {
     pub synced: u32,
@@ -42,6 +45,12 @@ impl std::fmt::Display for SyncReport {
     }
 }
 
+/// Syncs a folder group to the given servers.
+///
+/// group: FolderSync to sync;
+/// servers: Servers to sync to.
+///
+/// Returns a SyncReport
 pub fn sync(group: &FolderLinks, servers: &[ServerEntry]) -> Result<SyncReport> {
     let source = Config::load()?.foldersync_dir(group);
     let mut report = SyncReport::default();
@@ -61,6 +70,12 @@ pub fn sync(group: &FolderLinks, servers: &[ServerEntry]) -> Result<SyncReport> 
     Ok(report)
 }
 
+/// Unsyncs a folder sync group from the servers.
+///
+/// group: FolderSync to sync;
+/// servers: Servers to unsync from.
+///
+/// Returns the number of files removed
 pub fn unsync(group: &FolderLinks, servers: &[ServerEntry]) -> Result<u32> {
     let source = Config::load()?.foldersync_dir(group);
     let mut removed = 0u32;
@@ -74,6 +89,9 @@ pub fn unsync(group: &FolderLinks, servers: &[ServerEntry]) -> Result<u32> {
     Ok(removed)
 }
 
+/// Removes the contents of a group from the server.
+///
+/// Returns the number of files removed.
 fn unsync_dir(group_dir: &Path, server_dir: &Path, group_source: &Path, removed: &mut u32) -> Result<()> {
     for thing in std::fs::read_dir(group_dir)? {
         let entry = thing?;
@@ -91,6 +109,9 @@ fn unsync_dir(group_dir: &Path, server_dir: &Path, group_source: &Path, removed:
     Ok(())
 }
 
+/// Syncs a single entry from the given source to the given target, using the given link mode and report.
+///
+/// Returns an error if the sync fails.
 fn sync_entry(source: &Path, target: &Path, group_source: &Path, mode: &LinkMode, report: &mut SyncReport) -> Result<()> {
     if target.is_dir() && !target.is_symlink() {
         for thing in std::fs::read_dir(source)? {
@@ -123,35 +144,49 @@ fn sync_entry(source: &Path, target: &Path, group_source: &Path, mode: &LinkMode
     Ok(())
 }
 
+/// Returns whether the given path is a managed symlink.
 fn is_managed_symlink(path: &Path, group_src: &Path) -> bool {
     path.is_symlink() && std::fs::read_link(path).map(|t| t.starts_with(group_src)).unwrap_or(false)
 }
 
-fn copy(src: &Path, dst: &Path) -> Result<()> {
-    if src.is_dir() {
-        std::fs::create_dir_all(dst)?;
+/// Copies the contents of a folder/file to a dest.
+///
+/// target: Path to target;
+/// dest: Path to end folder.
+///
+/// Returns an error if the copy fails.
+fn copy(target: &Path, dest: &Path) -> Result<()> {
+    if target.is_dir() {
+        std::fs::create_dir_all(dest)?;
 
-        for thing in std::fs::read_dir(src)? {
+        for thing in std::fs::read_dir(target)? {
             let entry = thing?;
 
-            copy(&entry.path(), &dst.join(entry.file_name()))?;
+            copy(&entry.path(), &dest.join(entry.file_name()))?;
         }
-    } else {
-        std::fs::copy(src, dst)?;
-    }
+    } else { std::fs::copy(target, dest)?; }
 
     Ok(())
 }
 
+/// Creates a symlink from one folder to another!
+///
+/// source: Path to the source;
+/// dest: Path to the end folder.
 #[cfg(unix)]
-fn create_symlink(src: &Path, dst: &Path) -> std::io::Result<()> {
-    std::os::unix::fs::symlink(src, dst)
+fn create_symlink(source: &Path, dest: &Path) -> std::io::Result<()> {
+    std::os::unix::fs::symlink(source, dest)
 }
+
+/// Creates a symlink from one folder to another!
+///
+/// source: Path to the source;
+/// dest: Path to the end folder.
 #[cfg(windows)]
-fn create_symlink(src: &Path, dst: &Path) -> std::io::Result<()> {
-    if src.is_dir() {
-        std::os::windows::fs::symlink_dir(src, dst)
+fn create_symlink(source: &Path, dest: &Path) -> std::io::Result<()> {
+    if source.is_dir() {
+        std::os::windows::fs::symlink_dir(source, dest)
     } else {
-        std::os::windows::fs::symlink_file(src, dst)
+        std::os::windows::fs::symlink_file(source, dest)
     }
 }
