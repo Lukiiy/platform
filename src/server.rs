@@ -5,6 +5,7 @@ use std::io::{BufRead, BufReader, Write};
 use std::path::{PathBuf, Path};
 use std::process::{Command, Stdio, Child};
 use std::thread;
+use std::fs;
 use std::sync::{LazyLock, OnceLock};
 use regex::Regex;
 
@@ -31,7 +32,7 @@ pub fn run_server(entry: &mut ServerEntry, jar_path: &Path) -> Result<()> {
                 return Ok(());
             }
 
-            std::fs::write(&eula, "eula=true")?;
+            fs::write(&eula, "eula=true")?;
         }
     }
 
@@ -56,7 +57,7 @@ pub fn run_server(entry: &mut ServerEntry, jar_path: &Path) -> Result<()> {
         jvm_args.extend(entry.extra_jvm_args.iter().cloned());
 
         let args_path = entry.path.join("user_jvm_args.txt");
-        std::fs::write(&args_path, format!("{}\n", jvm_args.join("\n")))?;
+        fs::write(&args_path, format!("{}\n", jvm_args.join("\n")))?;
 
         let has_script = if cfg!(windows) {
             entry.path.join("run.bat").exists()
@@ -71,7 +72,7 @@ pub fn run_server(entry: &mut ServerEntry, jar_path: &Path) -> Result<()> {
                 .current_dir(&entry.path).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped())
                 .spawn().context(SERVER_ERR)?
         } else { // old Forge
-            let server_jar = std::fs::read_dir(&entry.path)?
+            let server_jar = fs::read_dir(&entry.path)?
                 .filter_map(|e| e.ok().map(|e| e.path())).find(|p| { p.extension().map_or(false, |e| e == "jar") && p.file_name().map(|n| n.to_string_lossy().contains("server")).unwrap_or(false) }).ok_or_else(|| anyhow::anyhow!(SERVER_ERR))?;
 
             let mut jvm = vec![format!("-Xms{}M", ram / 2), format!("-Xmx{}M", ram)];
@@ -84,51 +85,7 @@ pub fn run_server(entry: &mut ServerEntry, jar_path: &Path) -> Result<()> {
                 .spawn().context(SERVER_ERR)?
         };
 
-        let mut child_stdin = process.stdin.take().unwrap();
-        let mut shutdown_pipe = [0i32; 2]; // wake poll() so stdin thread exits on shut
-
-        unsafe { libc::pipe(shutdown_pipe.as_mut_ptr()) };
-
-        let stop_r = shutdown_pipe[0];
-        let stop_w = shutdown_pipe[1];
-
-        thread::spawn(move || { // stdin to child; exits on stop signal
-            let mut line = String::new();
-
-            loop { // wait for stdin/stop
-                let mut poll_set = [
-                    libc::pollfd {
-                        fd: 0,
-                        events: libc::POLLIN,
-                        revents: 0,
-                    },
-
-                    libc::pollfd {
-                        fd: stop_r,
-                        events: libc::POLLIN,
-                        revents: 0,
-                    }
-                ];
-
-                let result = unsafe { libc::poll(poll_set.as_mut_ptr(), 2, -1) };
-
-                if result <= 0 { break; }
-                if poll_set[1].revents != 0 { break; } // stop signal
-                if poll_set[0].revents & libc::POLLIN == 0 { continue; } // no data
-
-                line.clear();
-
-                match std::io::stdin().read_line(&mut line) { // poll already checked
-                    Ok(0) | Err(_) => break,
-
-                    Ok(_) => {
-                        if child_stdin.write_all(line.as_bytes()).is_err() { break; }
-                    }
-                }
-            }
-
-            unsafe { libc::close(stop_r) };
-        });
+        let stop_w = run_stdin_relay(&mut process);
 
         println!("{}", " Starting ".black().on_bright_green().bold());
 
@@ -155,6 +112,56 @@ pub fn run_server(entry: &mut ServerEntry, jar_path: &Path) -> Result<()> {
 
     ui::pause(format!("{}\nPress Enter...", " Server process ended. ".on_black().dimmed().bold()));
     Ok(())
+}
+
+fn run_stdin_relay(process: &mut Child) -> i32 {
+    let mut child_stdin = process.stdin.take().unwrap();
+    let mut shutdown_pipe = [0i32; 2]; // wake poll() so stdin thread exits on shut
+
+    unsafe { libc::pipe(shutdown_pipe.as_mut_ptr()) };
+
+    let stop_r = shutdown_pipe[0];
+    let stop_w = shutdown_pipe[1];
+
+    thread::spawn(move || { // stdin to child; exits on stop signal
+        let mut line = String::new();
+
+        loop { // wait for stdin/stop
+            let mut poll_set = [
+                libc::pollfd {
+                    fd: 0,
+                    events: libc::POLLIN,
+                    revents: 0
+                },
+
+                libc::pollfd {
+                    fd: stop_r,
+                    events: libc::POLLIN,
+                    revents: 0
+                }
+            ];
+
+            let result = unsafe { libc::poll(poll_set.as_mut_ptr(), 2, -1) };
+
+            if result <= 0 { break; }
+            if poll_set[1].revents != 0 { break; } // stop signal
+            if poll_set[0].revents & libc::POLLIN == 0 { continue; } // no data
+
+            line.clear();
+
+            match std::io::stdin().read_line(&mut line) { // poll already checked
+                Ok(0) | Err(_) => break,
+
+                Ok(_) => {
+                    if child_stdin.write_all(line.as_bytes()).is_err() { break; }
+                }
+            }
+        }
+
+        unsafe { libc::close(stop_r) };
+    });
+
+    stop_w
 }
 
 fn stream_process(config: &Config, process: &mut Child, software: &Software) {
@@ -195,7 +202,7 @@ fn remove_term_noise(line: &str) -> String {
 }
 
 pub fn get_custom_jar(server_path: &Path) -> Result<PathBuf> {
-    for entry in std::fs::read_dir(server_path)? {
+    for entry in fs::read_dir(server_path)? {
         let path = entry?.path();
 
         if path.extension().map_or(false, |e| e == "jar") { return Ok(path); }
