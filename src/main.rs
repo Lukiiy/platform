@@ -155,10 +155,11 @@ async fn software_menu(config: &mut Config, index: usize) -> Result<()> {
         println!("{}", "Change software and/or version for this server.".dimmed());
         println!();
 
-        let entry = &config.servers[index];
-        let current_software = entry.software;
-        let current_version = entry.mc_version.clone();
-        let current_jar = entry.jar_name.clone();
+        let (current_software, current_version, current_jar) = {
+            let entry = &config.servers[index];
+
+            (entry.software, entry.mc_version.clone(), entry.jar_name.clone())
+        };
 
         println!(" {} {} {} {}", "Current:".dimmed(), current_software.as_str().bright_green(), current_version.bright_cyan(), current_jar.as_deref().unwrap_or("???").white().italic());
         println!();
@@ -207,15 +208,15 @@ async fn software_menu(config: &mut Config, index: usize) -> Result<()> {
 
             1 => { // OH MY AAAAAAAAAAAAAAAAAAAAAAAA
                 let soft_manager = SoftwareManager::new();
-                let (target_software, target_version) = select_software(&soft_manager).await?;
+                let (target_software, target_version) = select_software(config, &soft_manager).await?;
 
-                if target_software != entry.software { ui::warn("This will change software! May require some reconfiguration."); }
-                if target_version != entry.mc_version { ui::warn("This will change version!"); }
+                if target_software != current_software { ui::warn("This will change software! May require some reconfiguration."); }
+                if target_version != current_version { ui::warn("This will change version!"); }
 
                 if Confirm::new().with_prompt("Proceed?").default(false).interact()? {
                     match soft_manager.ensure_jar(target_software, &target_version).await {
                         Ok((_, name)) => {
-                            let changed = target_software != entry.software || target_version != entry.mc_version || entry.jar_name.as_deref() != Some(name.as_str());
+                            let changed = target_software != current_software || target_version != current_version || current_jar.as_deref() != Some(name.as_str());
 
                             config.servers[index].software = target_software;
                             config.servers[index].mc_version = target_version;
@@ -354,7 +355,7 @@ async fn add_server_menu(config: &mut Config) -> Result<()> {
     let name: String = Input::new().with_prompt("Server name").interact_text()?;
     let id = slugify(&name);
 
-    let (software, mc_version) = select_software(&manager).await?;
+    let (software, mc_version) = select_software(config, &manager).await?;
     let ram_mb: u32 = 2048;
 
     let server_path = if is_new {
@@ -548,8 +549,9 @@ fn global_settings(config: &mut Config) -> Result<()> {
 
         let fancier_logs = format!("Fancier logs: {}", ui::toggleable(config.app.cleaner_log));
         let remove_deletion = format!("Remove deletion: {}", ui::toggleable(config.app.remove_deletion));
+        let unstable_ware = format!("Unstable Minecraft/software versions: {}", ui::toggleable(config.app.unstable_ware));
 
-        let select = Select::new().with_prompt("Settings").items(&[java_path, fancier_logs, remove_deletion, "Open main folder".into(), "Open config folder".into(), "Back".into()]).default(selected).interact()?;
+        let select = Select::new().with_prompt("Settings").items(&[java_path, fancier_logs, remove_deletion, unstable_ware, "Open main folder".into(), "Open config folder".into(), "Back".into()]).default(selected).interact()?;
 
         selected = select;
 
@@ -573,19 +575,20 @@ fn global_settings(config: &mut Config) -> Result<()> {
             }
 
             3 => {
-                open_folder(&config.app.data_dir.to_string_lossy());
+                config.app.unstable_ware = !config.app.unstable_ware;
+                config.save()?;
             }
 
-            4 => {
-                open_folder(&Config::config_dir().to_string_lossy());
-            }
+            4 => open_folder(&config.app.data_dir.to_string_lossy()),
+
+            5 => open_folder(&Config::config_dir().to_string_lossy()),
 
             _ => return Ok(())
         }
     }
 }
 
-async fn select_software(soft_manager: &SoftwareManager) -> Result<(Software, String)> {
+async fn select_software(config: &mut Config, soft_manager: &SoftwareManager) -> Result<(Software, String)> {
     let labels = Software::menu_labels();
     let label_refs: Vec<&str> = labels.iter().map(String::as_str).collect();
     let software = Software::EVERYTHING[ui::menu("Software", &label_refs, 0)?].0;
@@ -593,7 +596,7 @@ async fn select_software(soft_manager: &SoftwareManager) -> Result<(Software, St
     let mc_version = if software.auto_download() {
         ui::info("Fetching Minecraft versions...");
 
-        match soft_manager.minecraft_releases(usize::MAX, false, false).await {
+        match soft_manager.minecraft_releases(usize::MAX, config.app.unstable_ware, false).await {
             Ok(versions) => versions[ui::menu("Minecraft version", &versions, 0)?].clone(),
 
             Err(_) => Input::new().with_prompt("Minecraft version").interact_text()?

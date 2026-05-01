@@ -146,9 +146,9 @@ impl SoftwareManager {
                 Ok((url, format!("minecraft_server.{mc_version}.jar")))
             }
 
-            Software::Paper => self.resolve_papermc_dls("paper", mc_version, true).await,
+            Software::Paper => self.resolve_papermc_dls("paper", mc_version, Config::load()?.app.unstable_ware).await,
 
-            Software::Folia => self.resolve_papermc_dls("folia", mc_version, true).await,
+            Software::Folia => self.resolve_papermc_dls("folia", mc_version, Config::load()?.app.unstable_ware).await,
 
             Software::Fabric => {
                 #[derive(Deserialize)]
