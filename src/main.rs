@@ -133,6 +133,7 @@ async fn start_server(index: usize) -> Result<()> {
         }
     }
 
+    ui::title(&format!("Platform: Running {}", config.servers[index].name));
     server::run_server(&mut config.servers[index], &jar_path)?;
     config.save()?;
 
@@ -142,6 +143,8 @@ async fn start_server(index: usize) -> Result<()> {
             Err(e) => ui::warn(&format!("Failed unsync {}: {e}", group.name))
         }
     }
+
+    ui::title("Platform");
 
     Ok(())
 }
@@ -511,7 +514,7 @@ fn create_link_menu(config: &mut Config) -> Result<()> {
     let link = FolderLinks {
         name: name.clone(),
         servers: server_ids,
-        mode,
+        mode
     };
 
     let group_dir = config.foldersync_dir(&link);
