@@ -2,6 +2,7 @@ use anyhow::Result;
 use colored::{ColoredString, Colorize};
 use dialoguer::Select;
 use std::fmt::Display;
+use std::io::Write;
 
 /// Prints the little banner.
 pub fn banner() {
@@ -72,4 +73,12 @@ pub fn toggleable(bool: bool) -> ColoredString {
     } else {
         " OFF ".on_bright_red().into()
     }
+}
+
+/// Sets the terminal title
+/// title: String to be used a stitle
+pub fn title(title: &str) {
+    print!("\x1b]0;{}\x07", title);
+
+    let _ = std::io::stdout().flush().unwrap();
 }

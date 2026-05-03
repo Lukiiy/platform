@@ -40,6 +40,7 @@ async fn main() -> Result<()> {
 
 async fn main_menu(config: &mut Config) -> Result<bool> {
     ui::banner();
+    ui::title("Platform");
 
     let mut items: Vec<String> = config.servers.iter().map(|it| {
         format!("• {} {} {}", it.name.bright_green().bold(), format!("[{}]", it.software.as_str()).bright_cyan(), it.mc_version.dimmed())
