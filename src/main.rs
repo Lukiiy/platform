@@ -211,7 +211,6 @@ async fn software_menu(config: &mut Config, index: usize) -> Result<()> {
             }
 
             1 => { // OH MY AAAAAAAAAAAAAAAAAAAAAAAA
-                let soft_manager = SoftwareManager::new();
                 let (target_software, target_version) = select_software(config, &soft_manager).await?;
 
                 if target_software != current_software { ui::warn("This will change software! May require some reconfiguration."); }
@@ -555,7 +554,7 @@ fn global_settings(config: &mut Config) -> Result<()> {
         let remove_deletion = format!("Remove deletion: {}", ui::toggleable(config.app.remove_deletion));
         let unstable_ware = format!("Unstable Minecraft/software versions: {}", ui::toggleable(config.app.unstable_ware));
 
-        let select = Select::new().with_prompt("Settings").items(&[java_path, fancier_logs, remove_deletion, unstable_ware, "Open main folder".into(), "Open config folder".into(), "Back".into()]).default(selected).interact()?;
+        let select = Select::new().with_prompt("Settings").items(&[java_path, fancier_logs, remove_deletion, unstable_ware, "Clear software cache".into(), "Open main folder".into(), "Open config folder".into(), "Back".into()]).default(selected).interact()?;
 
         selected = select;
 
@@ -564,8 +563,7 @@ fn global_settings(config: &mut Config) -> Result<()> {
                 config.app.java_path = dialoguer::Input::new().with_prompt("Java path").default(config.app.java_path.clone()).interact_text()?.trim().to_string();
                 config.save()?;
 
-                ui::ok("Java path updated.");
-                ui::pause("Press Enter...");
+                ui::pause(format!("{}\nPress Enter...", " Java path updated. ".on_yellow().black().dimmed().bold()));
             }
 
             1 => {
@@ -583,9 +581,15 @@ fn global_settings(config: &mut Config) -> Result<()> {
                 config.save()?;
             }
 
-            4 => open_folder(&config.app.data_dir.to_string_lossy()),
+            4 => {
+                SoftwareManager::new().cleanup_unused(config.servers.as_slice())?;
 
-            5 => open_folder(&Config::config_dir().to_string_lossy()),
+                ui::pause(format!("{}\nPress Enter...", " Software cache cleared. ".on_yellow().black().dimmed().bold()));
+            }
+
+            5 => open_folder(&config.app.data_dir.to_string_lossy()),
+
+            6 => open_folder(&Config::config_dir().to_string_lossy()),
 
             _ => return Ok(())
         }

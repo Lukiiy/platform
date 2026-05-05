@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::{path::{Path, PathBuf}, sync::LazyLock, fs};
 
 use crate::Config;
+use crate::ServerEntry;
 
 pub const SERVERSTARTER_JAR: &str = "server_starter.jar";
 
@@ -77,6 +78,31 @@ impl SoftwareManager {
             software_dir: config.software_dir(),
             client: Client::builder().build().unwrap()
         }
+    }
+
+    pub fn cleanup_unused(&self, servers: &[ServerEntry]) -> Result<()> {
+        let in_use: std::collections::HashSet<PathBuf> = servers.iter() // Build set of jar paths currently in use
+            .filter_map(|it| it.jar_name.as_ref().map(|jar| self.software_dir.join(it.software.as_str().to_lowercase()).join(jar)))
+            .collect();
+
+        for software_entry in fs::read_dir(&self.software_dir)? { // Walk software_dir, delete any .jar not in the set
+            let software_dir = software_entry?.path();
+            if !software_dir.is_dir() { continue; }
+
+            for entry in fs::read_dir(&software_dir)? {
+                let path = entry?.path();
+
+                if path.extension().map_or(false, |e| e == "jar") && !in_use.contains(&path) {
+                    fs::remove_file(&path)?;
+                }
+            }
+
+            if fs::read_dir(&software_dir)?.next().is_none() {
+                fs::remove_dir(&software_dir)?; // Remove subfolder if empty
+            }
+        }
+
+        Ok(())
     }
 
     pub async fn ensure_jar(&self, software: Software, mc_version: &str) -> Result<(PathBuf, String)> {
