@@ -30,7 +30,7 @@ pub struct Settings {
     pub remove_deletion: bool,
 
     #[serde(default)]
-    pub unstable_ware: bool,
+    pub unstable_ware: bool
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
