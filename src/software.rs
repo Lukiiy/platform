@@ -102,6 +102,14 @@ impl SoftwareManager {
             }
         }
 
+        if !servers.iter().any(|s| s.software.is_installer()) {
+            let starter = self.software_dir.join(SERVERSTARTER_JAR);
+
+            if starter.exists() {
+                fs::remove_file(&starter)?;
+            }
+        }
+
         Ok(())
     }
 
