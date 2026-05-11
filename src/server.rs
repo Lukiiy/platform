@@ -201,10 +201,18 @@ fn stream_process(config: &Config, process: &mut Child, software: &Software) {
 }
 
 fn remove_term_noise(line: &str) -> String {
-    let mut out = TERMINAL_FILTER.replace_all(line, "").into_owned();
+    let replaced = TERMINAL_FILTER.replace_all(line, "");
+    let trimmed = replaced.trim();
 
-    out.retain(|c| !c.is_control());
-    out.trim().to_string()
+    if trimmed.chars().any(|c| c.is_control()) {
+        let mut out = trimmed.to_string();
+
+        out.retain(|c| !c.is_control());
+
+        out
+    } else {
+        trimmed.to_string()
+    }
 }
 
 pub fn get_custom_jar(server_path: &Path) -> Result<PathBuf> {
