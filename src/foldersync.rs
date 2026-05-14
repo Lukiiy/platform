@@ -37,7 +37,7 @@ impl fmt::Display for LinkMode {
 pub struct SyncReport {
     pub synced: u32,
     pub overridden: u32,
-    pub errors: Vec<String>
+    pub errors: Vec<Box<str>>
 }
 
 impl std::fmt::Display for SyncReport {
@@ -139,7 +139,7 @@ fn sync_entry(source: &Path, target: &Path, group_source: &Path, mode: &LinkMode
 
     match result {
         Ok(()) => report.synced += 1,
-        Err(e) => report.errors.push(format!("{}: {e}", target.display()))
+        Err(e) => report.errors.push(format!("{}: {e}", target.display()).into_boxed_str())
     }
 
     Ok(())
