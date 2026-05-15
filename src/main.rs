@@ -5,6 +5,7 @@ mod software;
 mod ui;
 mod file_utils;
 
+use std::{fs, io, process, path::PathBuf};
 use anyhow::Result;
 use colored::Colorize;
 use config::{Config, ServerEntry};
@@ -15,12 +16,12 @@ use file_utils::open_folder;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    if !std::io::IsTerminal::is_terminal(&std::io::stdin()) { std::process::exit(1); }
+    if !io::IsTerminal::is_terminal(&io::stdin()) { process::exit(1); }
 
     let mut config = Config::load()?;
 
-    std::fs::create_dir_all(config.software_dir())?;
-    std::fs::create_dir_all(config.servers_dir())?;
+    fs::create_dir_all(config.software_dir())?;
+    fs::create_dir_all(config.servers_dir())?;
 
     loop {
         match main_menu(&mut config).await {
@@ -331,7 +332,7 @@ fn remove_server(config: &mut Config, index: usize) -> Result<bool> {
 
     if Confirm::new().with_prompt(format!("Remove \"{name}\"? {warn}")).default(false).interact()? {
         if config.app.remove_deletion {
-            std::fs::remove_dir_all(&config.servers[index].path)?;
+            fs::remove_dir_all(&config.servers[index].path)?;
         }
 
         config.servers.remove(index);
@@ -364,12 +365,12 @@ async fn add_server_menu(config: &mut Config) -> Result<()> {
     let server_path = if is_new {
         let p = config.servers_dir().join(&id);
 
-        std::fs::create_dir_all(&p)?;
+        fs::create_dir_all(&p)?;
 
         p
     } else {
         let raw: String = Input::new().with_prompt("Path to server folder").interact_text()?;
-        let p = std::path::PathBuf::from(raw.trim());
+        let p = PathBuf::from(raw.trim());
 
         if !p.exists() {
             ui::err("Path not found.");
@@ -477,7 +478,7 @@ fn link_action_menu(config: &mut Config, index: usize) -> Result<()> {
 
                 if Confirm::new().with_prompt(format!("Delete group? {warn}")).default(false).interact()? {
                     if config.app.remove_deletion {
-                        std::fs::remove_dir_all(&config.foldersync_dir(&link))?;
+                        fs::remove_dir_all(&config.foldersync_dir(&link))?;
                     }
 
                     config.folder_syncs.remove(index);
@@ -518,7 +519,7 @@ fn create_link_menu(config: &mut Config) -> Result<()> {
 
     let group_dir = config.foldersync_dir(&link);
 
-    std::fs::create_dir_all(&group_dir)?;
+    fs::create_dir_all(&group_dir)?;
     ui::ok(&format!("Group folder created: {}", group_dir.display()));
 
     open_folder(&group_dir.to_string_lossy());
