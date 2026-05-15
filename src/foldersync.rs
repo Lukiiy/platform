@@ -1,6 +1,6 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use std::{fmt, path::Path};
+use std::{fs, fmt, path::Path};
 
 use crate::config::{ServerEntry, Config};
 use crate::file_utils;
@@ -40,8 +40,8 @@ pub struct SyncReport {
     pub errors: Vec<String>
 }
 
-impl std::fmt::Display for SyncReport {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for SyncReport {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(formatter, "{} synced, {} overridden", self.synced, self.overridden)
     }
 }
@@ -56,12 +56,12 @@ pub fn sync(group: &FolderLinks, servers: &[ServerEntry]) -> Result<SyncReport> 
     let source = Config::load()?.foldersync_dir(group);
     let mut report = SyncReport::default();
 
-    std::fs::create_dir_all(&source)?;
+    fs::create_dir_all(&source)?;
 
     for server in servers.iter().filter(|s| group.servers.contains(&s.id)) {
-        std::fs::create_dir_all(&server.path)?;
+        fs::create_dir_all(&server.path)?;
 
-        for thing in std::fs::read_dir(&source)? {
+        for thing in fs::read_dir(&source)? {
             let entry = thing?;
 
             sync_entry(&entry.path(), &server.path.join(entry.file_name()), &source, &group.mode, &mut report)?;
@@ -94,14 +94,14 @@ pub fn unsync(group: &FolderLinks, servers: &[ServerEntry]) -> Result<u32> {
 ///
 /// Returns the number of files removed.
 fn unsync_dir(group_dir: &Path, server_dir: &Path, group_source: &Path, removed: &mut u32) -> Result<()> {
-    for thing in std::fs::read_dir(group_dir)? {
+    for thing in fs::read_dir(group_dir)? {
         let entry = thing?;
         let target = server_dir.join(entry.file_name());
 
         if entry.path().is_dir() && target.is_dir() && !target.is_symlink() {
             unsync_dir(&entry.path(), &target, group_source, removed)?;
         } else if file_utils::is_managed_symlink(&target, group_source) {
-            std::fs::remove_file(&target)?;
+            fs::remove_file(&target)?;
 
             *removed += 1;
         }
@@ -115,7 +115,7 @@ fn unsync_dir(group_dir: &Path, server_dir: &Path, group_source: &Path, removed:
 /// Returns an error if the sync fails.
 fn sync_entry(source: &Path, target: &Path, group_source: &Path, mode: &LinkMode, report: &mut SyncReport) -> Result<()> {
     if target.is_dir() && !target.is_symlink() {
-        for thing in std::fs::read_dir(source)? {
+        for thing in fs::read_dir(source)? {
             let entry = thing?;
 
             sync_entry(&entry.path(), &target.join(entry.file_name()), group_source, mode, report)?;
@@ -130,7 +130,7 @@ fn sync_entry(source: &Path, target: &Path, group_source: &Path, mode: &LinkMode
         return Ok(());
     }
 
-    if target.is_symlink() { std::fs::remove_file(target)?; }
+    if target.is_symlink() { fs::remove_file(target)?; }
 
     let result = match mode {
         LinkMode::Symlink => file_utils::create_symlink(source, target).map_err(anyhow::Error::from),
