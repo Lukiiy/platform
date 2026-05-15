@@ -1,6 +1,6 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use std::{path::PathBuf};
+use std::{path::PathBuf, fs};
 
 use crate::foldersync::FolderLinks;
 use crate::software::Software;
@@ -89,14 +89,14 @@ impl Config {
             return Ok(def);
         }
 
-        Ok(toml::from_str(&std::fs::read_to_string(&path)?)?)
+        Ok(toml::from_str(&fs::read_to_string(&path)?)?)
     }
 
     pub fn save(&self) -> Result<()> {
         let path = Self::config_path();
 
-        std::fs::create_dir_all(path.parent().unwrap())?;
-        std::fs::write(&path, toml::to_string_pretty(self)?)?;
+        fs::create_dir_all(path.parent().unwrap())?;
+        fs::write(&path, toml::to_string_pretty(self)?)?;
 
         Ok(())
     }
