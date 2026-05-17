@@ -554,8 +554,9 @@ fn global_settings(config: &mut Config) -> Result<()> {
         let fancier_logs = format!("Fancier logs: {}", ui::toggleable(config.app.cleaner_log));
         let remove_deletion = format!("Remove deletion: {}", ui::toggleable(config.app.remove_deletion));
         let unstable_ware = format!("Unstable Minecraft/software versions: {}", ui::toggleable(config.app.unstable_ware));
+        let move_data = format!("Realocate data folder: {}", config.app.data_dir.to_string_lossy().bright_cyan());
 
-        let select = Select::new().with_prompt("Settings").items(&[java_path, fancier_logs, remove_deletion, unstable_ware, "Clear software cache".into(), "Open main folder".into(), "Open config folder".into(), "Back".into()]).default(selected).interact()?;
+        let select = Select::new().with_prompt("Settings").items(&[java_path, fancier_logs, remove_deletion, unstable_ware, move_data, "Clear software cache".into(), "Open main folder".into(), "Open config folder".into(), "Back".into()]).default(selected).interact()?;
 
         selected = select;
 
@@ -583,14 +584,39 @@ fn global_settings(config: &mut Config) -> Result<()> {
             }
 
             4 => {
+                let current = config.app.data_dir.to_string_lossy().to_string();
+                let new_path = PathBuf::from(Input::new().with_prompt("New data folder location").default(current).interact_text()?.trim());
+
+                if new_path == config.app.data_dir {
+                    ui::pause("Same path, nothing changed.\nPress Enter...");
+                } else if new_path.exists() && fs::read_dir(&new_path)?.next().is_some() {
+                    ui::warn("Target folder exists and is not empty, aborting.");
+                    ui::pause("Press Enter...");
+                } else if Confirm::new().with_prompt(format!("Move data to \"{}\"?", new_path.display())).default(false).interact()? {
+                    match file_utils::move_dir(&config.app.data_dir, &new_path) {
+                        Ok(()) => {
+                            config.app.data_dir = new_path;
+                            config.save()?;
+
+                            ui::ok("Data folder moved!");
+                        }
+
+                        Err(e) => ui::err(&format!("Move failed, original data is safe: {e}"))
+                    }
+
+                    ui::pause("Press Enter...");
+                }
+            }
+
+            5 => {
                 SoftwareManager::new().cleanup_unused(config.servers.as_slice())?;
 
                 ui::pause(format!("{}\nPress Enter...", " Software cache cleared. ".on_yellow().black().dimmed().bold()));
             }
 
-            5 => open_folder(&config.app.data_dir.to_string_lossy()),
+            6 => open_folder(&config.app.data_dir.to_string_lossy()),
 
-            6 => open_folder(&Config::config_dir().to_string_lossy()),
+            7 => open_folder(&Config::config_dir().to_string_lossy()),
 
             _ => return Ok(())
         }

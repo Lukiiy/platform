@@ -35,7 +35,25 @@ pub fn copy(target: &Path, dest: &Path) -> Result<()> {
 
             copy(&entry.path(), &dest.join(entry.file_name()))?;
         }
-    } else { fs::copy(target, dest)?; }
+    } else {
+        fs::copy(target, dest)?;
+    }
+
+    Ok(())
+}
+
+/// Moves a directory to a new location.
+///
+/// source: Path to the source;
+/// dest: Path to the end folder.
+pub fn move_dir(source: &Path, dest: &Path) -> Result<()> {
+    if fs::rename(source, dest).is_ok() {
+        return Ok(()); // same drive yayy
+    }
+
+    fs::create_dir_all(dest)?;
+    copy(source, dest)?;
+    fs::remove_dir_all(source)?;
 
     Ok(())
 }
@@ -63,6 +81,6 @@ pub fn create_symlink(source: &Path, dest: &Path) -> io::Result<()> {
 }
 
 /// Returns whether the given path is a managed symlink.
-pub fn is_managed_symlink(path: &Path, group_src: &Path) -> bool {
-    path.is_symlink() && fs::read_link(path).map(|t| t.starts_with(group_src)).unwrap_or(false)
+pub fn is_managed_symlink(path: &Path, group_source: &Path) -> bool {
+    path.is_symlink() && fs::read_link(path).map(|t| t.starts_with(group_source)).unwrap_or(false)
 }
