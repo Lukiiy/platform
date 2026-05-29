@@ -3,6 +3,9 @@ name: Build
 on:
   workflow_dispatch:
 
+env:
+  APP: platform
+
 jobs:
   build:
     strategy:
@@ -11,15 +14,27 @@ jobs:
         include:
           - platform: macos-latest
             target: aarch64-apple-darwin
+            suffix: -macOS-arm
 
           - platform: macos-15-intel
             target: x86_64-apple-darwin
+            suffix: -macOS-intel
 
           - platform: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
+            suffix: -linux
+
+          - platform: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            suffix: -linux-arm
 
           - platform: windows-2025-vs2026
             target: x86_64-pc-windows-msvc
+            suffix: -x86_64.exe
+
+          - platform: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            suffix: -arm64.exe
 
     runs-on: ${{ matrix.platform }}
 
@@ -38,8 +53,13 @@ jobs:
       - name: Build
         run: cargo build --release --target ${{ matrix.target }}
 
+      - name: Package
+        run: |
+          mkdir -p dist
+          cp "target/${{ matrix.target }}/release/${{ env.APP }}${{ runner.os == 'Windows' && '.exe' || '' }}" "dist/${{ env.APP }}${{ matrix.suffix }}"
+
       - name: Upload artifact
         uses: actions/upload-artifact@v6
         with:
-          name: ${{ matrix.target }}
-          path: target/${{ matrix.target }}/release/platform${{ runner.os == 'Windows' && '.exe' || '' }}
+          name: ${{ env.APP }}${{ matrix.suffix }}
+          path: dist/${{ env.APP }}${{ matrix.suffix }}
