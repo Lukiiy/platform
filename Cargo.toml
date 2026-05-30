@@ -19,7 +19,10 @@ colored = "3.1.1"
 anyhow = "1.0.102"
 dirs = "6"
 regex = "1.12.3"
+[target.'cfg(unix)'.dependencies]
 libc = "0.2.185"
+[target.'cfg(windows)'.dependencies]
+windows-sys = "0.61.2"
 
 [profile.release]
 opt-level = "s"

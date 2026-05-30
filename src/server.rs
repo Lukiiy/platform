@@ -1,12 +1,18 @@
 use anyhow::{Context, Result};
 use colored::Colorize;
 use dialoguer::Confirm;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Write, stdin};
 use std::path::{PathBuf, Path};
 use std::process::{Command, Stdio, Child};
 use std::thread;
 use std::fs;
 use std::sync::{LazyLock, OnceLock};
+#[cfg(windows)]
+use std::sync::Arc;
+#[cfg(windows)]
+use std::sync::atomic::{AtomicBool, Ordering};
+#[cfg(windows)]
+use std::time::Duration;
 use regex::Regex;
 
 use crate::ui;
@@ -85,12 +91,11 @@ pub fn run_server(entry: &mut ServerEntry, jar_path: &Path) -> Result<()> {
                 .spawn().context(SERVER_ERR)?
         };
 
-        let stop_w = run_stdin_relay(&mut process);
+        let stop = run_stdin_relay(&mut process);
 
         println!("{}", " Starting ".black().on_bright_green().bold());
-
         stream_process(&config, &mut process, &entry.software);
-        unsafe { libc::close(stop_w) };
+        stop_relay(stop);
 
         ui::pause(format!("{}\nPress Enter...", " Server process ended. ".on_black().dimmed().bold()));
         return Ok(());
@@ -114,11 +119,13 @@ pub fn run_server(entry: &mut ServerEntry, jar_path: &Path) -> Result<()> {
     Ok(())
 }
 
+#[cfg(unix)]
+/// Relays stdin to the child process, exiting on stop signal
 fn run_stdin_relay(process: &mut Child) -> i32 {
     let mut child_stdin = process.stdin.take().unwrap();
     let mut shutdown_pipe = [0i32; 2]; // wake poll() so stdin thread exits on shut
 
-    unsafe { libc::pipe(shutdown_pipe.as_mut_ptr()) };
+    unsafe { libc::pipe(shutdown_pipe.as_mut_ptr()) }; // pipe used as stop signal
 
     let stop_r = shutdown_pipe[0];
     let stop_w = shutdown_pipe[1];
@@ -149,7 +156,7 @@ fn run_stdin_relay(process: &mut Child) -> i32 {
 
             line.clear();
 
-            match std::io::stdin().read_line(&mut line) { // poll already checked
+            match stdin().read_line(&mut line) { // poll already checked
                 Ok(0) | Err(_) => break,
 
                 Ok(_) => {
@@ -158,10 +165,62 @@ fn run_stdin_relay(process: &mut Child) -> i32 {
             }
         }
 
-        unsafe { libc::close(stop_r) };
+        stop_relay(stop_r);
     });
 
-    stop_w
+    stop_w // caller closes this to quit
+}
+
+#[cfg(unix)]
+/// Signals relay thread to quit
+fn stop_relay(stop_w: i32) {
+    unsafe { libc::close(stop_w) };
+}
+
+#[cfg(windows)]
+/// Relays stdin to the child process, exiting on stop signal
+fn run_stdin_relay(process: &mut Child) -> Arc<AtomicBool> {
+    use windows_sys::Win32::System::Console::*;
+    use windows_sys::Win32::Foundation::*;
+
+    let stop = Arc::new(AtomicBool::new(false));
+    let stop_clone = stop.clone();
+    let mut child_stdin = process.stdin.take().unwrap();
+
+    thread::Builder::new().stack_size(256 * 1024).spawn(move || {
+        let stdin_handle = unsafe { GetStdHandle(STD_INPUT_HANDLE) };
+        let mut line = String::new();
+
+        loop {
+            if stop_clone.load(Ordering::Relaxed) { break; } // server stopped, quit
+
+            // poll before read_line to avoid blocking after server exits
+            let mut count = 0u32;
+
+            unsafe { GetNumberOfConsoleInputEvents(stdin_handle, &mut count) };
+
+            if count == 0 { // no input pending; sleep briefly to avoid spinning
+                thread::sleep(Duration::from_millis(20));
+
+                continue;
+            }
+
+            line.clear();
+
+            match stdin().read_line(&mut line) {
+                Ok(0) | Err(_) => break,
+                Ok(_) => if child_stdin.write_all(line.as_bytes()).is_err() { break }
+            }
+        }
+    }).unwrap();
+
+    stop
+}
+
+#[cfg(windows)]
+/// Signals relay thread to quit
+fn stop_relay(stop: Arc<AtomicBool>) {
+    stop.store(true, Ordering::Relaxed);
 }
 
 fn stream_process(config: &Config, process: &mut Child, software: &Software) {
