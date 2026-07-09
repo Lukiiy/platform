@@ -131,7 +131,7 @@ fn run_stdin_relay(process: &mut Child) -> i32 {
     let stop_r = shutdown_pipe[0];
     let stop_w = shutdown_pipe[1];
 
-    thread::Builder::new().stack_size(THREAD_STACK_SIZE)
+    let _ = thread::Builder::new().stack_size(THREAD_STACK_SIZE)
         .spawn(move || { // stdin to child; exits on stop signal
             let mut line = String::new();
 
@@ -158,8 +158,8 @@ fn run_stdin_relay(process: &mut Child) -> i32 {
 
                 line.clear();
 
-            match stdin().read_line(&mut line) { // poll already checked
-                Ok(0) | Err(_) => break,
+                match stdin().read_line(&mut line) { // poll already checked
+                    Ok(0) | Err(_) => break,
 
                     Ok(_) => {
                         if child_stdin.write_all(line.as_bytes()).is_err() { break; }
@@ -168,7 +168,7 @@ fn run_stdin_relay(process: &mut Child) -> i32 {
             }
 
         stop_relay(stop_r);
-    });
+    }).expect("Failed to run relay thread!");
 
     stop_w // caller closes this to quit
 }
