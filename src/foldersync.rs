@@ -37,7 +37,7 @@ impl fmt::Display for LinkMode {
 pub struct SyncReport {
     pub synced: u32,
     pub overridden: u32,
-    pub errors: Vec<String>
+    pub errors: Vec<Box<str>>
 }
 
 impl fmt::Display for SyncReport {
@@ -52,8 +52,8 @@ impl fmt::Display for SyncReport {
 /// servers: Servers to sync to.
 ///
 /// Returns a SyncReport
-pub fn sync(group: &FolderLinks, servers: &[ServerEntry]) -> Result<SyncReport> {
-    let source = Config::load()?.foldersync_dir(group);
+pub fn sync(group: &FolderLinks, servers: &[ServerEntry], config: &Config) -> Result<SyncReport> {
+    let source = config.foldersync_dir(group);
     let mut report = SyncReport::default();
 
     fs::create_dir_all(&source)?;
@@ -77,8 +77,8 @@ pub fn sync(group: &FolderLinks, servers: &[ServerEntry]) -> Result<SyncReport> 
 /// servers: Servers to unsync from.
 ///
 /// Returns the number of files removed
-pub fn unsync(group: &FolderLinks, servers: &[ServerEntry]) -> Result<u32> {
-    let source = Config::load()?.foldersync_dir(group);
+pub fn unsync(group: &FolderLinks, servers: &[ServerEntry], config: &Config) -> Result<u32> {
+    let source = config.foldersync_dir(group);
     let mut removed = 0u32;
 
     for server in servers.iter().filter(|s| group.servers.contains(&s.id)) {
@@ -139,7 +139,7 @@ fn sync_entry(source: &Path, target: &Path, group_source: &Path, mode: &LinkMode
 
     match result {
         Ok(()) => report.synced += 1,
-        Err(e) => report.errors.push(format!("{}: {e}", target.display()))
+        Err(e) => report.errors.push(format!("{}: {e}", target.display()).into_boxed_str())
     }
 
     Ok(())

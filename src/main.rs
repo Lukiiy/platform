@@ -128,7 +128,7 @@ async fn start_server(index: usize) -> Result<()> {
     let servers = config.servers.clone();
 
     for group in config.folder_syncs.iter().filter(|it| it.servers.contains(&entry.id)) { // sync folder groups
-        match foldersync::sync(group, &servers) {
+        match foldersync::sync(group, &servers, &config) {
             Ok(r) => ui::ok(&format!("Synced {}! {r}", group.name)),
             Err(e) => ui::warn(&format!("Failed sync {}: {e}", group.name))
         }
@@ -139,7 +139,7 @@ async fn start_server(index: usize) -> Result<()> {
     config.save()?;
 
     for group in config.folder_syncs.iter().filter(|it| it.servers.contains(&entry.id)) {
-        match foldersync::unsync(group, &servers) {
+        match foldersync::unsync(group, &servers, &config) {
             Ok(n) => ui::ok(&format!("Unsynced {}! {n} link(s) removed", group.name)),
             Err(e) => ui::warn(&format!("Failed unsync {}: {e}", group.name))
         }

@@ -67,6 +67,7 @@ impl Software {
 pub struct SoftwareManager {
     pub software_dir: PathBuf,
 
+    unstable_ware: bool,
     client: Client
 }
 
@@ -76,6 +77,7 @@ impl SoftwareManager {
 
         Self {
             software_dir: config.software_dir(),
+            unstable_ware: config.app.unstable_ware,
             client: Client::builder().build().unwrap()
         }
     }
@@ -180,9 +182,9 @@ impl SoftwareManager {
                 Ok((url, format!("minecraft_server.{mc_version}.jar")))
             }
 
-            Software::Paper => self.resolve_papermc_dls("paper", mc_version, Config::load()?.app.unstable_ware).await,
+            Software::Paper => self.resolve_papermc_dls("paper", mc_version, self.unstable_ware).await,
 
-            Software::Folia => self.resolve_papermc_dls("folia", mc_version, Config::load()?.app.unstable_ware).await,
+            Software::Folia => self.resolve_papermc_dls("folia", mc_version, self.unstable_ware).await,
 
             Software::Fabric => {
                 #[derive(Deserialize)]

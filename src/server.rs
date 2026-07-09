@@ -21,6 +21,7 @@ use crate::software::Software;
 
 static SERVERSTARTER_PATH: OnceLock<PathBuf> = OnceLock::new();
 static TERMINAL_FILTER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\x1B\[[0-?]*[ -/]*[@-~]").unwrap());
+const THREAD_STACK_SIZE: usize = 262144; // 256 * 1024
 
 pub fn run_server(entry: &mut ServerEntry, jar_path: &Path) -> Result<()> {
     let config = Config::load()?;
@@ -130,40 +131,41 @@ fn run_stdin_relay(process: &mut Child) -> i32 {
     let stop_r = shutdown_pipe[0];
     let stop_w = shutdown_pipe[1];
 
-    thread::spawn(move || { // stdin to child; exits on stop signal
-        let mut line = String::new();
+    thread::Builder::new().stack_size(THREAD_STACK_SIZE)
+        .spawn(move || { // stdin to child; exits on stop signal
+            let mut line = String::new();
 
-        loop { // wait for stdin/stop
-            let mut poll_set = [
-                libc::pollfd {
-                    fd: 0,
-                    events: libc::POLLIN,
-                    revents: 0
-                },
+            loop { // wait for stdin/stop
+                let mut poll_set = [
+                    libc::pollfd {
+                        fd: 0,
+                        events: libc::POLLIN,
+                        revents: 0
+                    },
 
-                libc::pollfd {
-                    fd: stop_r,
-                    events: libc::POLLIN,
-                    revents: 0
-                }
-            ];
+                    libc::pollfd {
+                        fd: stop_r,
+                        events: libc::POLLIN,
+                        revents: 0
+                    }
+                ];
 
-            let result = unsafe { libc::poll(poll_set.as_mut_ptr(), 2, -1) };
+                let result = unsafe { libc::poll(poll_set.as_mut_ptr(), 2, -1) };
 
-            if result <= 0 { break; }
-            if poll_set[1].revents != 0 { break; } // stop signal
-            if poll_set[0].revents & libc::POLLIN == 0 { continue; } // no data
+                if result <= 0 { break; }
+                if poll_set[1].revents != 0 { break; } // stop signal
+                if poll_set[0].revents & libc::POLLIN == 0 { continue; } // no data
 
-            line.clear();
+                line.clear();
 
             match stdin().read_line(&mut line) { // poll already checked
                 Ok(0) | Err(_) => break,
 
-                Ok(_) => {
-                    if child_stdin.write_all(line.as_bytes()).is_err() { break; }
+                    Ok(_) => {
+                        if child_stdin.write_all(line.as_bytes()).is_err() { break; }
+                    }
                 }
             }
-        }
 
         stop_relay(stop_r);
     });
@@ -229,24 +231,28 @@ fn stream_process(config: &Config, process: &mut Child, software: &Software) {
     let regex = Software::log_regex(software).clone();
     let cleaner = config.app.cleaner_log;
 
-    let thread_out = thread::spawn(move || {
-        for line in BufReader::new(stdout).lines().flatten() {
-            let line = remove_term_noise(&line);
-            if line.is_empty() { continue; }
+    let thread_out = thread::Builder::new().stack_size(THREAD_STACK_SIZE)
+        .spawn(move || {
+            for line in BufReader::with_capacity(4096, stdout).lines().flatten() {
+                let line = remove_term_noise(&line);
+                if line.is_empty() { continue; }
 
-            if cleaner {
-                println!("{}", format_line(&line, &regex));
-            } else {
-                println!("{line}");
+                if cleaner {
+                    println!("{}", format_line(&line, &regex));
+                } else {
+                    println!("{line}");
+                }
             }
-        }
-    });
+        })
+        .unwrap();
 
-    let thread_err = thread::spawn(move || {
-        for line in BufReader::new(stderr).lines().flatten() {
-            eprintln!("{}", line.bright_red());
-        }
-    });
+    let thread_err = thread::Builder::new().stack_size(THREAD_STACK_SIZE)
+        .spawn(move || {
+            for line in BufReader::with_capacity(4096, stderr).lines().flatten() {
+                eprintln!("{}", line.bright_red());
+            }
+        })
+        .unwrap();
 
     let _ = process.wait();
     let _ = thread_out.join();
@@ -254,10 +260,18 @@ fn stream_process(config: &Config, process: &mut Child, software: &Software) {
 }
 
 fn remove_term_noise(line: &str) -> String {
-    let mut out = TERMINAL_FILTER.replace_all(line, "").into_owned();
+    let replaced = TERMINAL_FILTER.replace_all(line, "");
+    let trimmed = replaced.trim();
 
-    out.retain(|c| !c.is_control());
-    out.trim().to_string()
+    if trimmed.chars().any(|c| c.is_control()) {
+        let mut out = trimmed.to_string();
+
+        out.retain(|c| !c.is_control());
+
+        out
+    } else {
+        trimmed.to_string()
+    }
 }
 
 pub fn get_custom_jar(server_path: &Path) -> Result<PathBuf> {
