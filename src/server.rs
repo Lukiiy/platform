@@ -229,30 +229,42 @@ fn stream_process(config: &Config, process: &mut Child, software: &Software) {
     let stdout = process.stdout.take().unwrap();
     let stderr = process.stderr.take().unwrap();
     let regex = Software::log_regex(software).clone();
-    let cleaner = config.app.cleaner_log;
+    let log_cleaner = config.app.cleaner_log;
 
     let thread_out = thread::Builder::new().stack_size(THREAD_STACK_SIZE)
         .spawn(move || {
-            for line in BufReader::with_capacity(4096, stdout).lines().flatten() {
-                let line = remove_term_noise(&line);
-                if line.is_empty() { continue; }
+            let mut reader = BufReader::new(stdout);
+            let mut line = String::new();
 
-                if cleaner {
-                    println!("{}", format_line(&line, &regex));
-                } else {
-                    println!("{line}");
+            while reader.read_line(&mut line).unwrap_or(0) != 0 {
+                let cleaned = remove_term_noise(&line);
+
+                line.clear();
+
+                if cleaned.is_empty() {
+                    continue;
                 }
+
+                if !log_cleaner {
+                    println!("{cleaned}");
+                    continue;
+                }
+
+                println!("{}", format_line(&cleaned, &regex));
             }
-        })
-        .unwrap();
+        }).unwrap();
 
     let thread_err = thread::Builder::new().stack_size(THREAD_STACK_SIZE)
         .spawn(move || {
-            for line in BufReader::with_capacity(4096, stderr).lines().flatten() {
-                eprintln!("{}", line.bright_red());
+            let mut reader = BufReader::new(stderr);
+            let mut line = String::new();
+
+            while reader.read_line(&mut line).unwrap_or(0) != 0 {
+                eprintln!("{}", line.trim_end_matches(['\n', '\r']).bright_red());
+
+                line.clear();
             }
-        })
-        .unwrap();
+        }).unwrap();
 
     let _ = process.wait();
     let _ = thread_out.join();
