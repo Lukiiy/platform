@@ -5,7 +5,7 @@ mod software;
 mod ui;
 mod file_utils;
 
-use std::{fs, io, process, path::PathBuf, io::ErrorKind};
+use std::{fs, io, process, path::PathBuf};
 use anyhow::Result;
 use colored::Colorize;
 use config::{Config, ServerEntry};
@@ -331,12 +331,7 @@ fn remove_server(config: &mut Config, index: usize) -> Result<bool> {
     let warn = if config.app.remove_deletion { "This action cannot be undone!" } else { "Files won't be deleted." };
 
     if Confirm::new().with_prompt(format!("Remove \"{name}\"? {warn}")).default(false).interact()? {
-        match fs::remove_dir_all(&config.servers[index].path) {
-            Ok(()) => {}
-
-            Err(e) if e.kind() == ErrorKind::NotFound => {}
-            Err(e) => return Err(e.into())
-        }
+        file_utils::remove_dir(&config.servers[index].path)?;
 
         config.servers.remove(index);
         config.save()?;
@@ -481,11 +476,7 @@ fn link_action_menu(config: &mut Config, index: usize) -> Result<()> {
 
                 if Confirm::new().with_prompt(format!("Delete group? {warn}")).default(false).interact()? {
                     if config.app.remove_deletion {
-                        match fs::remove_dir_all(&config.foldersync_dir(&config.folder_syncs[index])) {
-                            Ok(_) => {}
-                            Err(e) if e.kind() == ErrorKind::NotFound => {}
-                            Err(e) => return Err(e.into())
-                        };
+                        file_utils::remove_dir(&config.foldersync_dir(&config.folder_syncs[index]))?;
                     }
 
                     config.folder_syncs.remove(index);

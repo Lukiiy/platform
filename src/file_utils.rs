@@ -1,4 +1,4 @@
-use std::{path::Path, fs, io, os, process};
+use std::{path::Path, fs, io, os, process, io::ErrorKind};
 use anyhow::Result;
 
 use crate::ui;
@@ -83,4 +83,13 @@ pub fn create_symlink(source: &Path, dest: &Path) -> io::Result<()> {
 /// Returns whether the given path is a managed symlink.
 pub fn is_managed_symlink(path: &Path, group_source: &Path) -> bool {
     path.is_symlink() && fs::read_link(path).map(|t| t.starts_with(group_source)).unwrap_or(false)
+}
+
+/// Removes a directory, ignoring errors if the directory does not exist.
+pub fn remove_dir(path: &Path) -> Result<()> {
+    match fs::remove_dir_all(path) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(e.into()),
+    }
 }
