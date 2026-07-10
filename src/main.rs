@@ -5,7 +5,7 @@ mod software;
 mod ui;
 mod file_utils;
 
-use std::{fs, io, process, path::PathBuf};
+use std::{fs, io, process, path::PathBuf, io::ErrorKind};
 use anyhow::Result;
 use colored::Colorize;
 use config::{Config, ServerEntry};
@@ -331,8 +331,11 @@ fn remove_server(config: &mut Config, index: usize) -> Result<bool> {
     let warn = if config.app.remove_deletion { "This action cannot be undone!" } else { "Files won't be deleted." };
 
     if Confirm::new().with_prompt(format!("Remove \"{name}\"? {warn}")).default(false).interact()? {
-        if config.app.remove_deletion {
-            fs::remove_dir_all(&config.servers[index].path)?;
+        match fs::remove_dir_all(&config.servers[index].path) {
+            Ok(()) => {}
+
+            Err(e) if e.kind() == ErrorKind::NotFound => {}
+            Err(e) => return Err(e.into())
         }
 
         config.servers.remove(index);
