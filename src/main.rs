@@ -481,7 +481,11 @@ fn link_action_menu(config: &mut Config, index: usize) -> Result<()> {
 
                 if Confirm::new().with_prompt(format!("Delete group? {warn}")).default(false).interact()? {
                     if config.app.remove_deletion {
-                        fs::remove_dir_all(&config.foldersync_dir(&link))?;
+                        match fs::remove_dir_all(&config.foldersync_dir(&config.folder_syncs[index])) {
+                            Ok(_) => {}
+                            Err(e) if e.kind() == ErrorKind::NotFound => {}
+                            Err(e) => return Err(e.into())
+                        };
                     }
 
                     config.folder_syncs.remove(index);
