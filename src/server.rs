@@ -228,7 +228,7 @@ fn stop_relay(stop: Arc<AtomicBool>) {
 fn stream_process(config: &Config, process: &mut Child, software: &Software) {
     let stdout = process.stdout.take().unwrap();
     let stderr = process.stderr.take().unwrap();
-    let regex = Software::log_regex(software).clone();
+    let regex = Software::log_regex(software);
     let log_cleaner = config.app.cleaner_log;
 
     let thread_out = thread::Builder::new().stack_size(THREAD_STACK_SIZE)
@@ -250,7 +250,7 @@ fn stream_process(config: &Config, process: &mut Child, software: &Software) {
                     continue;
                 }
 
-                println!("{}", format_line(&cleaned, &regex));
+                println!("{}", format_line(&cleaned, regex));
             }
         }).unwrap();
 
