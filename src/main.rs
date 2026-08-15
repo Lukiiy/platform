@@ -59,7 +59,12 @@ async fn main_menu(config: &mut Config) -> Result<bool> {
         i if i == act => add_server_menu(config).await?,
         i if i == act + 1 => folder_sync_menu(config)?,
         i if i == act + 2 => global_settings(config)?,
-        _ => return Ok(false)
+        _ => {
+            print!("\x1b[1A\x1b[2K\r");
+            println!("Bye bye!");
+
+            return Ok(false);
+        }
     }
 
     Ok(true)
