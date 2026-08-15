@@ -234,7 +234,11 @@ async fn software_menu(config: &mut Config, index: usize) -> Result<()> {
 
                             config.save()?;
 
-                            if changed { ui::ok("Changed."); } else { ui::info("Nothing changed."); }
+                            if changed {
+                                ui::ok("Changed.");
+                            } else {
+                                ui::info("Nothing changed.");
+                            }
                         }
 
                         Err(e) => ui::err(&e.to_string())
