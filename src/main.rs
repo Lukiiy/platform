@@ -308,7 +308,7 @@ fn server_settings(config: &mut Config, index: usize) -> Result<()> {
 
             1 => {
                 let current = config.servers[index].extra_jvm_args.join(" ");
-                let args = Input::<String>::new().with_prompt("Extra JVM args").allow_empty(true).default(current).interact_text()?;
+                let args = Input::<String>::new().with_prompt("Extra JVM args").allow_empty(true).with_initial_text(current).interact_text()?;
 
                 config.servers[index].extra_jvm_args = args.split_whitespace().map(String::from).collect();
                 config.save()?;
@@ -319,7 +319,7 @@ fn server_settings(config: &mut Config, index: usize) -> Result<()> {
 
             2 => {
                 let current = config.servers[index].java_path.clone().unwrap_or_default();
-                let java = Input::<String>::new().with_prompt("Java path").allow_empty(true).default(current).interact_text()?;
+                let java = Input::<String>::new().with_prompt("Java path").allow_empty(true).with_initial_text(current).interact_text()?;
                 let trimmed = java.trim();
 
                 config.servers[index].java_path = if trimmed.is_empty() { None } else { Some(trimmed.to_string()) };
