@@ -83,7 +83,7 @@ impl SoftwareManager {
     }
 
     pub fn cleanup_unused(&self, servers: &[ServerEntry]) -> Result<()> {
-        let in_use: std::collections::HashSet<PathBuf> = servers.iter() // Build set of jar paths currently in use
+        let in_use: Vec<PathBuf> = servers.iter() // Build set of jar paths currently in use
             .filter_map(|it| it.jar_name.as_ref().map(|jar| self.software_dir.join(it.software.as_str().to_lowercase()).join(jar)))
             .collect();
 
@@ -132,7 +132,9 @@ impl SoftwareManager {
     pub async fn check_update(&self, software: Software, mc_version: &str, current: Option<&str>) -> Result<Option<(Option<String>, String)>> {
         let (_, latest) = self.resolve(software, mc_version).await?;
 
-        if current.map_or(false, |c| c == latest) { return Ok(None); }
+        if current.map_or(false, |c| c == latest) {
+            return Ok(None);
+        }
 
         Ok(Some((current.map(String::from), latest)))
     }
@@ -211,6 +213,7 @@ impl SoftwareManager {
                 };
 
                 let xml = self.get_text("https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml").await?;
+
                 let version = Self::resolve_maven_version(&xml, |v| v.starts_with(&neo_prefix) && !v.ends_with("-beta"))
                     .or_else(|| Self::resolve_maven_version(&xml, |v| v.starts_with(&neo_prefix)))
                     .ok_or_else(|| anyhow::anyhow!("No NeoForge version for {mc_version}"))?;
