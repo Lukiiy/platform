@@ -125,4 +125,9 @@ impl Config {
     pub fn config_dir() -> PathBuf {
         dirs::config_dir().unwrap_or_else(|| PathBuf::from(".")).join("platform")
     }
+
+    /// Returns the backups directory.
+    pub fn backups_dir(&self) -> PathBuf {
+        self.app.data_dir.join("backups")
+    }
 }
