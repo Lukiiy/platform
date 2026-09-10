@@ -217,7 +217,10 @@ async fn software_menu(config: &mut Config, index: usize) -> Result<()> {
             }
 
             1 => { // OH MY AAAAAAAAAAAAAAAAAAAAAAAA
-                let (target_software, target_version) = select_software(config, &soft_manager).await?;
+                let Some((target_software, target_version)) = select_software(config, &soft_manager).await?
+                else {
+                    continue;
+                };
 
                 if target_software != current_software { ui::warn("This will change software! May require some reconfiguration."); }
                 if target_version != current_version { ui::warn("This will change version!"); }
@@ -366,7 +369,11 @@ async fn add_server_menu(config: &mut Config) -> Result<()> {
     let name: String = Input::new().with_prompt("Server name").interact_text()?;
     let id = slugify(&name);
 
-    let (software, mc_version) = select_software(config, &manager).await?;
+    let Some((software, mc_version)) = select_software(config, &manager).await?
+    else {
+        return Ok(());
+    };
+
     let ram_mb: u32 = 2048;
 
     let server_path = if is_new {
@@ -630,16 +637,33 @@ fn global_settings(config: &mut Config) -> Result<()> {
     }
 }
 
-async fn select_software(config: &mut Config, soft_manager: &SoftwareManager) -> Result<(Software, String)> {
+async fn select_software(config: &mut Config, soft_manager: &SoftwareManager) -> Result<Option<(Software, String)>> {
     let labels = Software::menu_labels();
-    let label_refs: Vec<&str> = labels.iter().map(String::as_str).collect();
-    let software = Software::EVERYTHING[ui::menu("Software", &label_refs, 0)?].0;
 
+    let mut label_refs: Vec<&str> = labels.iter().map(String::as_str).collect();
+    label_refs.push("Back");
+
+    let softare_sel = ui::menu("Software", &label_refs, 0)?;
+    if softare_sel == label_refs.len() - 1 { // Back
+        return Ok(None);
+    }
+
+    let software = Software::EVERYTHING[softare_sel].0;
     let mc_version = if software.auto_download() {
         ui::info("Fetching Minecraft versions...");
 
         match soft_manager.minecraft_releases(usize::MAX, config.app.unstable_ware, false).await {
-            Ok(versions) => versions[ui::menu("Minecraft version", &versions, 0)?].clone(),
+            Ok(versions) => {
+                let mut version_labels = versions.clone();
+                version_labels.push("Back".into());
+
+                let version_sel = ui::menu("Minecraft version", &version_labels, 0)?;
+                if version_sel == version_labels.len() - 1 { // Back
+                    return Ok(None);
+                }
+
+                versions[version_sel].clone()
+            }
 
             Err(_) => Input::new().with_prompt("Minecraft version").interact_text()?
         }
@@ -647,7 +671,7 @@ async fn select_software(config: &mut Config, soft_manager: &SoftwareManager) ->
         Input::new().with_prompt("Minecraft version").interact_text()?
     };
 
-    Ok((software, mc_version))
+    Ok(Some((software, mc_version)))
 }
 
 fn slugify(string: &str) -> String {
