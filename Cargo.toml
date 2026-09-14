@@ -20,6 +20,7 @@ anyhow = "1.0.102"
 dirs = "6"
 regex = "1.12.3"
 zip = { version = "8.6.0", default-features = false, features = ["deflate"] }
+chrono = "0.4.45"
 [target.'cfg(unix)'.dependencies]
 libc = "0.2.185"
 [target.'cfg(windows)'.dependencies]
