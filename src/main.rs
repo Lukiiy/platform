@@ -4,8 +4,10 @@ mod server;
 mod software;
 mod ui;
 mod file_utils;
+mod backup;
 
 use std::{fs, io, process, path::PathBuf};
+use std::time::Instant;
 use anyhow::Result;
 use colored::Colorize;
 use config::{Config, ServerEntry};
@@ -81,12 +83,13 @@ async fn server_menu(config: &mut Config, index: usize) -> Result<()> {
         println!(" {} {}", "Version:".dimmed(), server.mc_version.bright_cyan());
         println!();
 
-        match ui::menu("Actions", &["Start", "Software Menu", "Open folder", "Edit settings", "Remove", "Back"], 0)? {
+        match ui::menu("Actions", &["Start", "Software Menu", "Open folder", "Backups", "Edit settings", "Remove", "Back"], 0)? {
             0 => start_server(index).await?,
             1 => software_menu(config, index).await?,
             2 => open_folder(&config.servers[index].path.to_string_lossy()),
-            3 => server_settings(config, index)?,
-            4 => {
+            3 => backup_menu(config, index)?,
+            4 => server_settings(config, index)?,
+            5 => {
                 if remove_server(config, index)? {
                     return Ok(());
                 }
@@ -672,6 +675,92 @@ async fn select_software(config: &mut Config, soft_manager: &SoftwareManager) ->
     };
 
     Ok(Some((software, mc_version)))
+}
+
+fn backup_menu(config: &mut Config, index: usize) -> Result<()> {
+    let mut selected = 0;
+
+    loop {
+        ui::banner();
+
+        println!(" {} {}", "Backups:".dimmed(), config.servers[index].name.bold().bright_white());
+        println!();
+
+        let backups = backup::list(config, &config.servers[index])?;
+        let mut items = vec!["Create".to_string()];
+
+        items.extend(backups.iter().map(|backup| {
+            format!("{} ({})", backup.name, file_utils::format_size(backup.size))
+        }));
+        items.push("Back".into());
+
+        if selected >= items.len() {
+            selected = items.len() - 1;
+        }
+
+        let choice = ui::menu("Actions", &items, selected)?;
+
+        selected = choice;
+
+        if choice == 0 {
+            ui::info("Compressing files...");
+
+            let time = Instant::now();
+
+            match backup::create(config, &config.servers[index]) {
+                Ok(path) => ui::ok(&format!("Created: {} ({:.1}s)", path.file_name().unwrap_or_default().to_string_lossy(), time.elapsed().as_secs_f64())),
+                Err(e) => ui::err(&format!("Failed: {e}"))
+            }
+
+            ui::pause("Press Enter...");
+            continue;
+        }
+
+        if choice == items.len() - 1 {
+            return Ok(());
+        }
+
+        backup_actions(config, index, &backups[choice - 1])?;
+    }
+}
+
+fn backup_actions(config: &mut Config, index: usize, backup: &backup::Backup) -> Result<()> {
+    loop {
+        ui::banner();
+
+        let server = &config.servers[index];
+
+        println!(" {} {}", "Server:".dimmed(), server.name.bold().bright_white());
+        println!(" {} {}", "Backup:".dimmed(), backup.name.bright_cyan());
+        println!(" {} {}", "Size:".dimmed(), file_utils::format_size(backup.size));
+        println!();
+
+        match ui::menu("Actions", &["Restore", "Delete", "Back"], 0)? {
+            0 => {
+                if !Confirm::new().with_prompt("Restore this backup? Current server files will be replaced.").default(false).interact()? {
+                    continue;
+                }
+
+                match backup::restore_backup(server, backup) {
+                    Ok(()) => ui::ok("Backup restored."),
+                    Err(e) => ui::err(&format!("Restore failed: {e}"))
+                }
+
+                ui::pause("Press Enter...");
+            }
+
+            1 => if Confirm::new().with_prompt("Delete this backup?").default(false).interact()? {
+                backup::remove(backup)?;
+
+                ui::ok("Backup deleted.");
+                ui::pause("Press Enter...");
+
+                return Ok(());
+            }
+
+            _ => return Ok(())
+        }
+    }
 }
 
 fn slugify(string: &str) -> String {
