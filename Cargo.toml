@@ -19,7 +19,7 @@ colored = "3.1.1"
 anyhow = "1.0.102"
 dirs = "6"
 regex = "1.12.3"
-zip = { version = "8.6.0", default-features = false, features = ["deflate"] }
+zip = { version = "8.6.0", default-features = false, features = ["deflate", "zstd"] }
 chrono = "0.4.45"
 [target.'cfg(unix)'.dependencies]
 libc = "0.2.185"

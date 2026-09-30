@@ -40,7 +40,7 @@ pub fn create(config: &Config, server: &ServerEntry) -> Result<PathBuf> {
     let tmp = path.with_extension("zip.tmp");
     let mut zip = ZipWriter::new(File::create(&tmp)?);
 
-    add_directory(&mut zip, &server.path, &server.path, SimpleFileOptions::default().compression_method(CompressionMethod::Deflated).compression_level(Some(6)))?;
+    add_directory(&mut zip, &server.path, &server.path, SimpleFileOptions::default().compression_method(CompressionMethod::ZSTD).compression_level(Some(6)))?;
     zip.finish()?;
     fs::rename(&tmp, &path)?;
 
